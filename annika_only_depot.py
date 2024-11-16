@@ -103,13 +103,17 @@ def main():
     # Calculate portfolio values
     total_portfolio_value = calculate_portfolio_value(portfolio, prices, initial_cash_position)
 
-    # Display Annika's current share
-    st.subheader("Annika's Current Share")
+    # Display Annika's current share (enlarged and prominent)
+    st.subheader("💵 Annika's Current Portfolio Value")
     annika_value = total_portfolio_value * (annika["Percentage"] / 100)
-    st.write(f"💰 **{annika_value:,.2f} USD** (Share: {annika['Percentage']:.2f}%)")
+    st.markdown(f"<h1 style='text-align: center; color: green;'>€{annika_value:,.2f}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h4 style='text-align: center;'>Share: {annika['Percentage']:.2f}%</h4>", unsafe_allow_html=True)
+
+    # Add a horizontal rule for spacing
+    st.markdown("<hr style='border: 1px solid #ddd;'>", unsafe_allow_html=True)
 
     # Transaction section
-    st.subheader("Make a Transaction")
+    st.subheader("Log an Investment/Withdraw")
     amount = st.number_input("Enter Amount (negative for withdrawal)", value=0.0, step=100.0)
     if st.button("Submit Transaction"):
         # Recalculate Annika's ownership
