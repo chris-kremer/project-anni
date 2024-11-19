@@ -32,11 +32,14 @@ data_file = "christian_data.json"
 # Load or initialize Christian's ownership and transaction log
 def load_data():
     if os.path.exists(data_file):
-        with open(data_file, "r") as f:
-            data = json.load(f)
-            return data["christian"], data["transactions"]
+        try:
+            with open(data_file, "r") as f:
+                data = json.load(f)
+                return data.get("christian", {"Percentage": 0.15000000}), data.get("transactions", [])
+        except json.JSONDecodeError:
+            st.warning("Data file is corrupt. Reinitializing.")
+            return {"Percentage": 0.15000000}, []
     else:
-        # Default ownership for Christian
         christian = {"Percentage": 0.15000000}
         transactions = []
         return christian, transactions
@@ -47,20 +50,55 @@ def save_data(christian, transactions):
         json.dump({"christian": christian, "transactions": transactions}, f)
 
 
-# Fetch current prices
-def fetch_current_prices(tickers):
-    prices = {}
+# Fetch historical prices
+def fetch_historical_prices(tickers):
+    """
+    Fetches monthly historical prices for the last 2 years for a list of tickers.
+    """
+    historical_prices = {}
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
-            data = stock.history(period="1d")
-            if not data.empty and "Close" in data.columns:
-                prices[ticker] = data["Close"].iloc[-1]
+            # Fetch data for the last 2 years
+            data = stock.history(period="2y", interval="1mo")
+            if not data.empty:
+                historical_prices[ticker] = data["Close"].fillna(method="ffill")
             else:
-                prices[ticker] = None
-        except Exception:
-            prices[ticker] = None
-    return prices
+                historical_prices[ticker] = None
+        except Exception as e:
+            print(f"Error fetching data for {ticker}: {e}")
+            historical_prices[ticker] = None
+    return historical_prices
+
+
+def calculate_monthly_christian_share(portfolio, historical_prices, christian, initial_cash):
+    """
+    Calculates the total value of Christian's share for each month based on historical prices.
+    """
+    all_dates = set()
+    for prices in historical_prices.values():
+        if prices is not None:
+            all_dates.update(prices.index)
+    all_dates = sorted(all_dates)
+
+    monthly_values = []
+    for date in all_dates:
+        total_value = initial_cash
+        for asset in portfolio:
+            ticker = asset["Ticker"]
+            quantity = asset["Quantity"]
+            prices = historical_prices.get(ticker)
+            if prices is not None and date in prices:
+                price = prices.loc[date]
+                if pd.isna(price) or price <= 0:
+                    continue
+                total_value += price * quantity
+        # Calculate Christian's share
+        christian_value = total_value * (christian["Percentage"] / 100)
+        if christian_value >= 30000:  # Filter out values below 30k
+            monthly_values.append({"Date": date, "Christians Share": christian_value})  # Rename column here
+
+    return pd.DataFrame(monthly_values)
 
 
 # Calculate portfolio value
@@ -97,13 +135,26 @@ def main():
 
     # Fetch prices
     tickers = [asset["Ticker"] for asset in portfolio]
-    st.write("Fetching current prices...")
-    prices = fetch_current_prices(tickers)
+    st.write("Fetching historical prices...")
+    historical_prices = fetch_historical_prices(tickers)
 
-    # Calculate portfolio values
-    total_portfolio_value = calculate_portfolio_value(portfolio, prices, initial_cash_position)
+    # Calculate monthly Christian's share
+    monthly_christian_share = calculate_monthly_christian_share(
+        portfolio, historical_prices, christian, initial_cash_position
+    )
 
-    # Display Christian's current share (enlarged and prominent)
+    # Display Christian's share chart
+    st.subheader("📈 Christian's Share Over the Last 2 Years")
+    if not monthly_christian_share.empty:
+        st.line_chart(monthly_christian_share.set_index("Date")["Christians Share"])
+    else:
+        st.write("No data available above the threshold of €30,000.")
+
+    # Display Christian's current share
+    total_portfolio_value = calculate_portfolio_value(
+        portfolio, {k: v.iloc[-1] for k, v in historical_prices.items() if v is not None}, initial_cash_position
+    )
+
     st.subheader("💵 Christian's Current Portfolio Value")
     christian_value = total_portfolio_value * (christian["Percentage"] / 100)
     st.markdown(f"<h1 style='text-align: center; color: green;'>€{christian_value:,.2f}</h1>", unsafe_allow_html=True)
