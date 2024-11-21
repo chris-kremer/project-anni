@@ -41,20 +41,19 @@ def load_ownership_data():
     else:
         return {"Percentage": 66.5}
 
-# Calculate current asset values
 def calculate_asset_values(portfolio):
     asset_values = []
     for asset in portfolio:
         try:
             ticker = asset["Ticker"]
             quantity = asset["Quantity"]
-            stock = yf.Ticker(ticker)
             
-            # Handle specific default value for UQ2B.DU
+            # Use default value for UQ2B.DU
             if ticker == "UQ2B.DU":
-                price = 365.27  # Default price
+                price = 365.27  # Default price for UQ2B.DU
             else:
                 # Fetch historical data
+                stock = yf.Ticker(ticker)
                 stock_data = stock.history(period="1d")
                 if stock_data.empty:
                     raise ValueError(f"No data found for {ticker}")
@@ -68,8 +67,7 @@ def calculate_asset_values(portfolio):
                 "Value (€)": round(value, 2)
             })
         except Exception as e:
-            # Suppress error messages, but log if debugging is needed
-            st.warning(f"Error fetching price for {ticker}: {e}")
+            # Suppress error messages but handle missing data gracefully
             asset_values.append({
                 "Ticker": ticker,
                 "Quantity": quantity,
