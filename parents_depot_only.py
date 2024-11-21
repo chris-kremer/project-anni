@@ -49,11 +49,17 @@ def calculate_asset_values(portfolio):
             ticker = asset["Ticker"]
             quantity = asset["Quantity"]
             stock = yf.Ticker(ticker)
-            # Fetch historical data
-            stock_data = stock.history(period="1d")
-            if stock_data.empty:
-                raise ValueError(f"No data found for {ticker}")
-            price = stock_data["Close"].iloc[-1]
+            
+            # Handle specific default value for UQ2B.DU
+            if ticker == "UQ2B.DU":
+                price = 365.27  # Default price
+            else:
+                # Fetch historical data
+                stock_data = stock.history(period="1d")
+                if stock_data.empty:
+                    raise ValueError(f"No data found for {ticker}")
+                price = stock_data["Close"].iloc[-1]
+
             value = price * quantity
             asset_values.append({
                 "Ticker": ticker,
@@ -62,6 +68,7 @@ def calculate_asset_values(portfolio):
                 "Value (€)": round(value, 2)
             })
         except Exception as e:
+            # Suppress error messages, but log if debugging is needed
             st.warning(f"Error fetching price for {ticker}: {e}")
             asset_values.append({
                 "Ticker": ticker,
