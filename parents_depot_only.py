@@ -49,23 +49,39 @@ def calculate_asset_values(portfolio):
             ticker = asset["Ticker"]
             quantity = asset["Quantity"]
             stock = yf.Ticker(ticker)
-            price = stock.history(period="1d")["Close"].iloc[-1]
+            # Fetch historical data
+            stock_data = stock.history(period="1d")
+            if stock_data.empty:
+                raise ValueError(f"No data found for {ticker}")
+            price = stock_data["Close"].iloc[-1]
             value = price * quantity
-            asset_values.append({"Ticker": ticker, "Quantity": quantity, "Price (€)": round(price, 2), "Value (€)": round(value, 2)})
+            asset_values.append({
+                "Ticker": ticker,
+                "Quantity": quantity,
+                "Price (€)": round(price, 2),
+                "Value (€)": round(value, 2)
+            })
         except Exception as e:
             st.warning(f"Error fetching price for {ticker}: {e}")
-            asset_values.append({"Ticker": ticker, "Quantity": quantity, "Price (€)": "N/A", "Value (€)": "N/A"})
+            asset_values.append({
+                "Ticker": ticker,
+                "Quantity": quantity,
+                "Price (€)": "N/A",
+                "Value (€)": "N/A"
+            })
     return pd.DataFrame(asset_values)
 
 # Calculate current share value
 def calculate_current_share_value(asset_values, ownership_data, cash):
-    total_portfolio_value = cash + asset_values["Value (€)"].sum()
+    # Exclude rows where Value (€) is not a number
+    valid_values = pd.to_numeric(asset_values["Value (€)"], errors="coerce").fillna(0)
+    total_portfolio_value = cash + valid_values.sum()
     share_value = total_portfolio_value * (ownership_data["Percentage"] / 100)
     return share_value
 
 # Calculate return percentage
 def calculate_return_percentage(current_value, baseline=107000):
-    return ((current_value / baseline)-1) * 100
+    return ((current_value / baseline) - 1) * 100
 
 def main():
     st.title("Aktueller Wert eurer Aktien:")
