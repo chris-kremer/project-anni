@@ -96,38 +96,39 @@ def calculate_monthly_christian_share(portfolio, historical_prices, christian, i
         # Calculate Christian's share
         christian_value = total_value * (christian["Percentage"] / 100)
         if christian_value >= 30000:  # Filter out values below 30k
-            monthly_values.append({"Date": date, "Christians Share": christian_value})  # Rename column here
+            monthly_values.append({"Date": date, "Christians Share": christian_value})
 
     return pd.DataFrame(monthly_values)
 
 
-# Calculate portfolio value
-def calculate_portfolio_value(portfolio, prices, cash):
-    total_value = cash
-    for asset in portfolio:
-        ticker = asset["Ticker"]
-        quantity = asset["Quantity"]
-        price = prices.get(ticker)
-        if price:
-            total_value += price * quantity
-    return total_value
+def calculate_annual_returns(dataframe):
+    """
+    Calculates annual percentage returns based on Christian's share, but only for full years.
+    """
+    # Extract the year and month from the dates
+    dataframe["Year"] = dataframe["Date"].dt.year
+    dataframe["Month"] = dataframe["Date"].dt.month
+
+    # Group by year and aggregate data
+    annual_data = dataframe.groupby("Year").agg(
+        first_value=("Christians Share", "first"),
+        last_value=("Christians Share", "last"),
+        months_covered=("Month", "nunique")
+    )
+
+    # Identify full years (12 months) and the current year (up to now)
+    current_year = datetime.now().year
+    annual_data = annual_data[
+        (annual_data["months_covered"] == 12) |  # Full year
+        ((annual_data.index == current_year) & (annual_data["months_covered"] > 0))  # Current year
+    ]
+
+    # Calculate annual returns
+    annual_data["Annual Return (%)"] = ((annual_data["last_value"] - annual_data["first_value"]) / annual_data["first_value"]) * 100
+
+    return annual_data.reset_index()[["Year", "Annual Return (%)"]]
 
 
-# Recalculate Christian's ownership percentage after a transaction
-def recalculate_christian(christian, total_portfolio_value, transaction_amount):
-    # Adjust Christian's share value
-    current_share_value = total_portfolio_value * (christian["Percentage"] / 100)
-    updated_share_value = current_share_value + transaction_amount
-
-    # Update the total portfolio value with the transaction
-    new_total_portfolio_value = total_portfolio_value + transaction_amount
-
-    # Recalculate Christian's percentage
-    christian["Percentage"] = (updated_share_value / new_total_portfolio_value) * 100
-    return christian, new_total_portfolio_value
-
-
-# Streamlit app
 def main():
     christian, transactions = load_data()
 
@@ -150,38 +151,16 @@ def main():
     else:
         st.write("No data available above the threshold of €30,000.")
 
-    # Display Christian's current share
-    total_portfolio_value = calculate_portfolio_value(
-        portfolio, {k: v.iloc[-1] for k, v in historical_prices.items() if v is not None}, initial_cash_position
-    )
+    # Calculate annual returns
+    if not monthly_christian_share.empty:
+        annual_returns = calculate_annual_returns(monthly_christian_share)
 
-    st.subheader("💵 Christian's Current Portfolio Value")
-    christian_value = total_portfolio_value * (christian["Percentage"] / 100)
-    st.markdown(f"<h1 style='text-align: center; color: green;'>€{christian_value:,.2f}</h1>", unsafe_allow_html=True)
-    st.markdown(f"<h4 style='text-align: center;'>Share: {christian['Percentage']:.2f}%</h4>", unsafe_allow_html=True)
-
-    # Add a horizontal rule for spacing
-    st.markdown("<hr style='border: 1px solid #ddd;'>", unsafe_allow_html=True)
-
-    # Transaction section
-    st.subheader("Log an Investment/Withdraw")
-    amount = st.number_input("Enter Amount (negative for withdrawal)", value=0.0, step=100.0)
-    if st.button("Submit Transaction"):
-        # Recalculate Christian's ownership
-        christian, total_portfolio_value = recalculate_christian(christian, total_portfolio_value, amount)
-        # Log the transaction
-        transactions.append({"Amount": amount, "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
-        save_data(christian, transactions)
-        st.success("Transaction processed successfully!")
-
-    # Transaction log
-    st.subheader("Transaction Log")
-    if transactions:
-        log_df = pd.DataFrame(transactions)
-        st.table(log_df)
+    # Display annual returns table
+    st.subheader("📊 Annual Percentage Returns")
+    if not monthly_christian_share.empty:
+        st.table(annual_returns)
     else:
-        st.write("No transactions logged yet.")
-
+        st.write("No annual return data available.")
 
 if __name__ == "__main__":
     main()
