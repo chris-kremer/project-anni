@@ -104,13 +104,17 @@ def main():
     return_percentage = calculate_return_percentage(current_share_value)
 
     # Display the current share value
-    st.metric(label="", value=f"{current_share_value:,.2f} €")
+    st.metric(label="Aktueller Anteilswert", value=f"{current_share_value:,.2f} €")
 
     # Display the return percentage
     st.markdown(
         f"<p style='font-size:20px; color:green;'>+ {return_percentage:.2f}%</p>",
         unsafe_allow_html=True,
     )
+
+    # Display the table of asset values
+    st.write("### Portfolio Übersicht")
+    st.table(asset_values_df)
 
 if __name__ == "__main__":
     main()
