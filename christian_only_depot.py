@@ -52,14 +52,10 @@ def save_data(christian, transactions):
 
 # Fetch historical prices
 def fetch_historical_prices(tickers):
-    """
-    Fetches monthly historical prices for the last 2 years for a list of tickers.
-    """
     historical_prices = {}
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
-            # Fetch data for the last 2 years
             data = stock.history(period="2y", interval="1mo")
             if not data.empty:
                 historical_prices[ticker] = data["Close"].fillna(method="ffill")
@@ -71,10 +67,21 @@ def fetch_historical_prices(tickers):
     return historical_prices
 
 
+def calculate_current_value(portfolio, christian, initial_cash, historical_prices):
+    total_value = initial_cash
+    for asset in portfolio:
+        ticker = asset["Ticker"]
+        quantity = asset["Quantity"]
+        prices = historical_prices.get(ticker)
+        if prices is not None and not prices.empty:
+            current_price = prices.iloc[-1]
+            if pd.notna(current_price) and current_price > 0:
+                total_value += current_price * quantity
+    christian_value = total_value * (christian["Percentage"] / 100)
+    return christian_value
+
+
 def calculate_monthly_christian_share(portfolio, historical_prices, christian, initial_cash):
-    """
-    Calculates the total value of Christian's share for each month based on historical prices.
-    """
     all_dates = set()
     for prices in historical_prices.values():
         if prices is not None:
@@ -93,7 +100,6 @@ def calculate_monthly_christian_share(portfolio, historical_prices, christian, i
                 if pd.isna(price) or price <= 0:
                     continue
                 total_value += price * quantity
-        # Calculate Christian's share
         christian_value = total_value * (christian["Percentage"] / 100)
         if christian_value >= 30000:  # Filter out values below 30k
             monthly_values.append({"Date": date, "Christians Share": christian_value})
@@ -101,66 +107,44 @@ def calculate_monthly_christian_share(portfolio, historical_prices, christian, i
     return pd.DataFrame(monthly_values)
 
 
-def calculate_annual_returns(dataframe):
-    """
-    Calculates annual percentage returns based on Christian's share, but only for full years.
-    """
-    # Extract the year and month from the dates
-    dataframe["Year"] = dataframe["Date"].dt.year
-    dataframe["Month"] = dataframe["Date"].dt.month
-
-    # Group by year and aggregate data
-    annual_data = dataframe.groupby("Year").agg(
-        first_value=("Christians Share", "first"),
-        last_value=("Christians Share", "last"),
-        months_covered=("Month", "nunique")
-    )
-
-    # Identify full years (12 months) and the current year (up to now)
-    current_year = datetime.now().year
-    annual_data = annual_data[
-        (annual_data["months_covered"] == 12) |  # Full year
-        ((annual_data.index == current_year) & (annual_data["months_covered"] > 0))  # Current year
-    ]
-
-    # Calculate annual returns
-    annual_data["Annual Return (%)"] = ((annual_data["last_value"] - annual_data["first_value"]) / annual_data["first_value"]) * 100
-
-    return annual_data.reset_index()[["Year", "Annual Return (%)"]]
-
-
 def main():
     christian, transactions = load_data()
 
     st.title("Christian's Stocks")
 
-    # Fetch prices
     tickers = [asset["Ticker"] for asset in portfolio]
-    st.write("Fetching historical prices...")
     historical_prices = fetch_historical_prices(tickers)
+
+    current_value = calculate_current_value(portfolio, christian, initial_cash_position, historical_prices)
+    st.metric(
+        label="Current Value of Christian's Share",
+        value=f"€{current_value:,.2f}",
+        delta=f"{((current_value / 32000) - 1) * 100:.2f}%",
+        delta_color="normal"
+    )
 
     # Calculate monthly Christian's share
     monthly_christian_share = calculate_monthly_christian_share(
         portfolio, historical_prices, christian, initial_cash_position
     )
 
+    # Add current value as a datapoint
+    current_date = pd.Timestamp.now()
+    if monthly_christian_share.empty:
+        monthly_christian_share = pd.DataFrame([{"Date": current_date, "Christians Share": current_value}])
+    else:
+        monthly_christian_share = pd.concat(
+            [monthly_christian_share, pd.DataFrame([{"Date": current_date, "Christians Share": current_value}])],
+            ignore_index=True
+        )
+
     # Display Christian's share chart
-    st.subheader("📈 Christian's Share Over the Last 2 Years")
+    st.subheader("Christian's Share Over the Last 2 Years")
     if not monthly_christian_share.empty:
         st.line_chart(monthly_christian_share.set_index("Date")["Christians Share"])
     else:
         st.write("No data available above the threshold of €30,000.")
 
-    # Calculate annual returns
-    if not monthly_christian_share.empty:
-        annual_returns = calculate_annual_returns(monthly_christian_share)
-
-    # Display annual returns table
-    st.subheader("📊 Annual Percentage Returns")
-    if not monthly_christian_share.empty:
-        st.table(annual_returns)
-    else:
-        st.write("No annual return data available.")
 
 if __name__ == "__main__":
     main()

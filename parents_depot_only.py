@@ -1,8 +1,10 @@
 import yfinance as yf
 import pandas as pd
 import streamlit as st
-import json
+from datetime import datetime
+import pytz
 import os
+import json
 
 # Initial portfolio and ownership
 portfolio_assets = [
@@ -27,6 +29,7 @@ portfolio_assets = [
 
 initial_cash = 17000
 data_file_path = "parents_data.json"
+local_tz = pytz.timezone("Europe/Berlin")  # Local timezone
 
 # Load ownership data
 def load_ownership_data():
@@ -41,80 +44,107 @@ def load_ownership_data():
     else:
         return {"Percentage": 66.5}
 
-def calculate_asset_values(portfolio):
-    asset_values = []
-    for asset in portfolio:
+# Fetch historical prices
+def fetch_historical_prices(tickers):
+    """
+    Fetches monthly historical prices for the last 2 years for a list of tickers.
+    """
+    historical_prices = {}
+    for ticker in tickers:
         try:
+            stock = yf.Ticker(ticker)
+            # Fetch data for the last 2 years
+            data = stock.history(period="2y", interval="1mo")
+            if not data.empty:
+                historical_prices[ticker] = data["Close"].fillna(method="ffill")
+            else:
+                historical_prices[ticker] = None
+        except Exception as e:
+            print(f"Error fetching data for {ticker}: {e}")
+            historical_prices[ticker] = None
+    return historical_prices
+
+# Calculate monthly share value
+def calculate_monthly_share_value(portfolio, historical_prices, ownership, initial_cash):
+    all_dates = set()
+    for prices in historical_prices.values():
+        if prices is not None:
+            all_dates.update(prices.index)
+    all_dates = sorted(all_dates)
+
+    monthly_values = []
+    for date in all_dates:
+        total_value = initial_cash
+        for asset in portfolio:
             ticker = asset["Ticker"]
             quantity = asset["Quantity"]
-            
-            # Use default value for UQ2B.DU
-            if ticker == "UQ2B.DU":
-                price = 365.27  # Default price for UQ2B.DU
-            else:
-                # Fetch historical data
-                stock = yf.Ticker(ticker)
-                stock_data = stock.history(period="1d")
-                if stock_data.empty:
-                    raise ValueError(f"No data found for {ticker}")
-                price = stock_data["Close"].iloc[-1]
+            prices = historical_prices.get(ticker)
+            if prices is not None and date in prices:
+                price = prices.loc[date]
+                if pd.isna(price) or price <= 0:
+                    continue
+                total_value += price * quantity
+        # Calculate share value
+        share_value = total_value * (ownership["Percentage"] / 100)
+        if share_value >= 30000:  # Filter out values below 30k
+            monthly_values.append({"Date": date, "Share Value": share_value})
 
-            value = price * quantity
-            asset_values.append({
-                "Ticker": ticker,
-                "Quantity": quantity,
-                "Price (€)": round(price, 2),
-                "Value (€)": round(value, 2)
-            })
-        except Exception as e:
-            # Suppress error messages but handle missing data gracefully
-            asset_values.append({
-                "Ticker": ticker,
-                "Quantity": quantity,
-                "Price (€)": "N/A",
-                "Value (€)": "N/A"
-            })
-    return pd.DataFrame(asset_values)
+    return pd.DataFrame(monthly_values)
 
 # Calculate current share value
-def calculate_current_share_value(asset_values, ownership_data, cash):
-    # Exclude rows where Value (€) is not a number
-    valid_values = pd.to_numeric(asset_values["Value (€)"], errors="coerce").fillna(0)
-    total_portfolio_value = cash + valid_values.sum()
-    share_value = total_portfolio_value * (ownership_data["Percentage"] / 100)
+def calculate_current_value(portfolio, ownership, initial_cash, historical_prices):
+    total_value = initial_cash
+    for asset in portfolio:
+        ticker = asset["Ticker"]
+        quantity = asset["Quantity"]
+        prices = historical_prices.get(ticker)
+        if prices is not None and not prices.empty:
+            current_price = prices.iloc[-1]
+            if pd.notna(current_price) and current_price > 0:
+                total_value += current_price * quantity
+    share_value = total_value * (ownership["Percentage"] / 100)
     return share_value
 
-# Calculate return percentage
-def calculate_return_percentage(current_value, baseline=107000):
-    return ((current_value / baseline) - 1) * 100
-
 def main():
-    st.title("Aktueller Wert eurer Aktien:")
+    st.title("Depot Anteil")
 
     # Load ownership data
     ownership = load_ownership_data()
 
-    # Calculate asset values
-    asset_values_df = calculate_asset_values(portfolio_assets)
+    # Fetch historical prices
+    tickers = [asset["Ticker"] for asset in portfolio_assets]
+    historical_prices = fetch_historical_prices(tickers)
 
     # Calculate current share value
-    current_share_value = calculate_current_share_value(asset_values_df, ownership, initial_cash)
-
-    # Calculate return percentage
-    return_percentage = calculate_return_percentage(current_share_value)
-
-    # Display the current share value
-    st.metric(label="Aktueller Anteilswert", value=f"{current_share_value:,.2f} €")
-
-    # Display the return percentage
-    st.markdown(
-        f"<p style='font-size:20px; color:green;'>+ {return_percentage:.2f}%</p>",
-        unsafe_allow_html=True,
+    current_value = calculate_current_value(portfolio_assets, ownership, initial_cash, historical_prices)
+    st.metric(
+        label="Aktueller Wert",
+        value=f"€{current_value:,.2f}",
+        delta=f"{((current_value / 107000) - 1) * 100:.2f}%",
+        delta_color="normal"
     )
 
-    # Display the table of asset values
-    st.write("### Portfolio Übersicht")
-    st.table(asset_values_df)
+    # Calculate monthly share value
+    monthly_share_value = calculate_monthly_share_value(
+        portfolio_assets, historical_prices, ownership, initial_cash
+    )
+
+    # Add current value as a datapoint
+    current_date = pd.Timestamp.now()
+    if monthly_share_value.empty:
+        monthly_share_value = pd.DataFrame([{"Date": current_date, "Share Value": current_value}])
+    else:
+        monthly_share_value = pd.concat(
+            [monthly_share_value, pd.DataFrame([{"Date": current_date, "Share Value": current_value}])],
+            ignore_index=True
+        )
+
+    # Display parents' share chart
+    st.subheader("Wertentwicklung über die letzten 2 Jahre")
+    if not monthly_share_value.empty:
+        st.line_chart(monthly_share_value.set_index("Date")["Share Value"])
+    else:
+        st.write("No data available above the threshold of €30,000.")
 
 if __name__ == "__main__":
     main()
