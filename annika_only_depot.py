@@ -117,21 +117,6 @@ def main():
     # Add a horizontal rule for spacing
     st.markdown("<hr style='border: 1px solid #ddd;'>", unsafe_allow_html=True)
 
-    # Display table of current holdings and their value
-    st.subheader("📊 Current Holdings")
-    holdings_data = []
-    for asset in portfolio:
-        ticker = asset["Ticker"]
-        quantity = asset["Quantity"]
-        price = prices.get(ticker, None)
-        value = price * quantity if price else None
-        holdings_data.append({"Ticker": ticker, "Quantity": quantity, "Price (€)": price, "Value (€)": value})
-
-    holdings_df = pd.DataFrame(holdings_data)
-    holdings_df["Price (€)"] = holdings_df["Price (€)"].apply(lambda x: f"{x:,.2f}" if x else "N/A")
-    holdings_df["Value (€)"] = holdings_df["Value (€)"].apply(lambda x: f"{x:,.2f}" if x else "N/A")
-    st.table(holdings_df)
-
     # Transaction section
     st.subheader("Log an Investment/Withdraw")
     amount = st.number_input("Enter Amount (negative for withdrawal)", value=0.0, step=100.0)
