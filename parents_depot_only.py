@@ -104,6 +104,18 @@ def calculate_current_value(portfolio, ownership, initial_cash, historical_price
                 total_value += current_price * quantity
     share_value = total_value * (ownership["Percentage"] / 100)
     return share_value
+def calc_total_value(portfolio, ownership, initial_cash, historical_prices):
+    total_value = initial_cash
+    for asset in portfolio:
+        ticker = asset["Ticker"]
+        quantity = asset["Quantity"]
+        prices = historical_prices.get(ticker)
+        if prices is not None and not prices.empty:
+            current_price = prices.iloc[-1]
+            if pd.notna(current_price) and current_price > 0:
+                total_value += current_price * quantity
+    t_value = total_value * (1)
+    return t_value
 
 def main():
     st.title("Depot Anteil")
@@ -123,7 +135,14 @@ def main():
         delta=f"{((current_value / 117000) - 1) * 100:.2f}%",
         delta_color="normal"
     )
-
+    # Calculate current share value
+    t_value = calc_total_value(portfolio_assets, ownership, initial_cash, historical_prices)
+    st.metric(
+        label="Totoal Wert",
+        value=f"€{t_value:,.2f}",
+        delta=f"{((t_value / 117000) - 1) * 100:.2f}%",
+        delta_color="normal"
+    )
     # Calculate monthly share value
     monthly_share_value = calculate_monthly_share_value(
         portfolio_assets, historical_prices, ownership, initial_cash
