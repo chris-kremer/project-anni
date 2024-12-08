@@ -26,7 +26,7 @@ portfolio = [
     {"Ticker": "MBG.DE", "Quantity": 50},
 ]
 
-initial_cash_position = 17000
+initial_cash_position = 27000
 data_file = "christian_data.json"
 
 # Load or initialize Christian's ownership and transaction log
