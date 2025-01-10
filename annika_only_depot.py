@@ -117,6 +117,19 @@ def main():
     # Add a horizontal rule for spacing
     st.markdown("<hr style='border: 1px solid #ddd;'>", unsafe_allow_html=True)
 
+    # Show table with total value of each position
+    st.subheader("📊 Portfolio Overview")
+    position_values = []
+    for asset in portfolio:
+        ticker = asset["Ticker"]
+        quantity = asset["Quantity"]
+        price = prices.get(ticker, 0)
+        total_value = price * quantity if price else 0
+        position_values.append({"Ticker": ticker, "Quantity": quantity, "Price (€)": price, "Total Value (€)": total_value})
+
+    position_df = pd.DataFrame(position_values)
+    st.table(position_df)
+
     # Transaction section
     st.subheader("Log an Investment/Withdraw")
     amount = st.number_input("Enter Amount (negative for withdrawal)", value=0.0, step=100.0)
