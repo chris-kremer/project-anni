@@ -37,12 +37,12 @@ def load_ownership_data():
         try:
             with open(data_file_path, "r") as file:
                 data = json.load(file)
-                return data.get("ownership", {"Percentage": 67.821735319})
+                return data.get("ownership", {"Percentage": 69.821735319})
         except json.JSONDecodeError:
             st.warning("Data file is corrupt. Using default values.")
-            return {"Percentage": 67.821735319}
+            return {"Percentage": 69.821735319}
     else:
-        return {"Percentage": 67.821735319}
+        return {"Percentage": 69.821735319}
 
 # Fetch historical prices
 def fetch_historical_prices(tickers):
