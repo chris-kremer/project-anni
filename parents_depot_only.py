@@ -27,7 +27,7 @@ portfolio_assets = [
     {"Ticker": "MBG.DE", "Quantity": 50},
 ]
 
-initial_cash = 27000
+initial_cash = 42000
 data_file_path = "parents_data.json"
 local_tz = pytz.timezone("Europe/Berlin")  # Local timezone
 
