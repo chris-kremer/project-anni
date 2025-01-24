@@ -175,7 +175,7 @@ def main():
             st.metric("Seit gestern Open", "N/A")
 
     # Chart section
-    st.subheader("Wertentwicklung über die letzten 2 Jahre")
+    st.subheader("Wertentwicklung über die letzten 2 Jahre:")
     monthly_share_value = calculate_monthly_share_value(
         portfolio_assets, historical_prices, ownership, initial_cash
     )
