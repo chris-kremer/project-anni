@@ -130,7 +130,6 @@ def main():
             before_today = data[data.index.date < current_date]
             if not before_today.empty:
                 try:
-                    # Explicitly convert to scalar
                     yesterday_open_dict[ticker] = before_today.iloc[-1]["Open"].item()
                 except (KeyError, AttributeError):
                     yesterday_open_dict[ticker] = None
@@ -141,7 +140,6 @@ def main():
         data = daily_prices.get(ticker)
         if data is not None and not data.empty:
             try:
-                # Ensure scalar conversion
                 current_price_dict[ticker] = data.iloc[-1]["Close"].item()
             except (KeyError, AttributeError):
                 current_price_dict[ticker] = None
@@ -152,7 +150,7 @@ def main():
         price * asset["Quantity"] for asset, price in zip(portfolio_assets, current_price_dict.values())
     ) + initial_cash
 
-    # Display metrics (unchanged)
+    # Display metrics
     col1, col2 = st.columns(2)
     with col1:
         st.metric(
@@ -176,7 +174,7 @@ def main():
         else:
             st.metric("Seit gestern Open", "N/A")
 
-    # Chart section (unchanged)
+    # Chart section
     st.subheader("Wertentwicklung über die letzten 2 Jahre")
     monthly_share_value = calculate_monthly_share_value(
         portfolio_assets, historical_prices, ownership, initial_cash
@@ -204,59 +202,89 @@ def main():
     else:
         st.write("Keine Daten über dem Schwellenwert von €50.000 verfügbar.")
 
-    # Detailed positions table (unchanged)
+    # Detailed positions with performance analysis
     st.subheader("Detaillierte Aktienpositionen")
     debug_data = []
+    max_percentage_gain = {"ticker": None, "value": -float('inf')}
+    max_total_gain = {"ticker": None, "value": -float('inf')}
+    
     for asset in portfolio_assets:
         ticker = asset["Ticker"]
         data = daily_prices.get(ticker)
+        quantity = asset["Quantity"]
+        
         if data is not None and not data.empty:
             try:
-                price = data.iloc[-1]["Close"].item()  # Scalar conversion
-                value = price * asset["Quantity"]
+                price = data.iloc[-1]["Close"].item()
+                value = price * quantity
                 yesterday_open = yesterday_open_dict.get(ticker)
                 
-                # Calculate daily changes
-                if yesterday_open and yesterday_open > 0:
+                if yesterday_open and yesterday_open > 0 and price:
                     delta_price = price - yesterday_open
                     delta_percent = (delta_price / yesterday_open) * 100
+                    total_gain = delta_price * quantity
+                    
+                    # Update performance trackers
+                    if delta_percent > max_percentage_gain["value"]:
+                        max_percentage_gain = {"ticker": ticker, "value": delta_percent}
+                    if total_gain > max_total_gain["value"]:
+                        max_total_gain = {"ticker": ticker, "value": total_gain}
+                        
                     delta_price_str = f"€{delta_price:+.2f}"
                     delta_percent_str = f"{delta_percent:+.2f}%"
+                    total_gain_str = f"€{total_gain:+,.2f}"
                 else:
                     delta_price_str = "N/A"
                     delta_percent_str = "N/A"
+                    total_gain_str = "N/A"
 
                 debug_data.append({
                     "Ticker": ticker,
-                    "Menge": asset["Quantity"],
+                    "Menge": quantity,
                     "Preis": f"€{price:.2f}",
                     "Wert": f"€{value:,.2f}",
                     "% Anteil": f"{(value / total_portfolio_value * 100):.2f}%",
                     "Tagesänderung (€)": delta_price_str,
-                    "Tagesänderung (%)": delta_percent_str
+                    "Tagesänderung (%)": delta_percent_str,
+                    "Gesamtgewinn": total_gain_str
                 })
+                
             except (KeyError, AttributeError):
                 debug_data.append({
                     "Ticker": ticker,
-                    "Menge": asset["Quantity"],
+                    "Menge": quantity,
                     "Preis": "Fehler",
                     "Wert": "Fehler",
                     "% Anteil": "N/A",
                     "Tagesänderung (€)": "N/A",
-                    "Tagesänderung (%)": "N/A"
+                    "Tagesänderung (%)": "N/A",
+                    "Gesamtgewinn": "N/A"
                 })
         else:
             debug_data.append({
                 "Ticker": ticker,
-                "Menge": asset["Quantity"],
+                "Menge": quantity,
                 "Preis": "Fehlend",
                 "Wert": "Fehlend",
                 "% Anteil": "N/A",
                 "Tagesänderung (€)": "N/A",
-                "Tagesänderung (%)": "N/A"
+                "Tagesänderung (%)": "N/A",
+                "Gesamtgewinn": "N/A"
             })
 
+    # Display positions table
     st.dataframe(pd.DataFrame(debug_data))
+
+    # Performance highlights
+    if max_percentage_gain["ticker"] and max_total_gain["ticker"]:
+        st.success(
+            f"**Die beste Performance hatte heute {max_percentage_gain['ticker']} "
+            f"({max_percentage_gain['value']:.2f}%). "
+            f"Am meisten Geld brachte {max_total_gain['ticker']} "
+            f"(€{max_total_gain['value']:+,.2f}).**"
+        )
+    else:
+        st.warning("Keine vollständigen Tagesdaten verfügbar für Performance-Analyse")
 
 if __name__ == "__main__":
     main()
