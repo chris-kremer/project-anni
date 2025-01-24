@@ -129,14 +129,22 @@ def main():
         if data is not None and not data.empty:
             before_today = data[data.index.date < current_date]
             if not before_today.empty:
-                yesterday_open_dict[ticker] = before_today.iloc[-1]["Open"]
+                try:
+                    # Explicitly convert to scalar
+                    yesterday_open_dict[ticker] = before_today.iloc[-1]["Open"].item()
+                except (KeyError, AttributeError):
+                    yesterday_open_dict[ticker] = None
 
     # Current price dictionary
     current_price_dict = {}
     for ticker in tickers:
         data = daily_prices.get(ticker)
         if data is not None and not data.empty:
-            current_price_dict[ticker] = data.iloc[-1]["Close"]
+            try:
+                # Ensure scalar conversion
+                current_price_dict[ticker] = data.iloc[-1]["Close"].item()
+            except (KeyError, AttributeError):
+                current_price_dict[ticker] = None
 
     # Calculate current value
     current_value = calculate_value(portfolio_assets, current_price_dict, initial_cash, ownership)
@@ -144,7 +152,7 @@ def main():
         price * asset["Quantity"] for asset, price in zip(portfolio_assets, current_price_dict.values())
     ) + initial_cash
 
-    # Display metrics
+    # Display metrics (unchanged)
     col1, col2 = st.columns(2)
     with col1:
         st.metric(
@@ -163,12 +171,12 @@ def main():
                 label="Seit gestern",
                 value=f"€{delta_value:+,.2f}",
                 delta=f"{delta_percent:+.2f}%",
-                delta_color="normal"  # Fixed color direction
+                delta_color="normal"
             )
         else:
             st.metric("Seit gestern Open", "N/A")
 
-    # Chart section
+    # Chart section (unchanged)
     st.subheader("Wertentwicklung über die letzten 2 Jahre")
     monthly_share_value = calculate_monthly_share_value(
         portfolio_assets, historical_prices, ownership, initial_cash
@@ -196,36 +204,47 @@ def main():
     else:
         st.write("Keine Daten über dem Schwellenwert von €50.000 verfügbar.")
 
-    # Detailed positions with daily changes
+    # Detailed positions table (unchanged)
     st.subheader("Detaillierte Aktienpositionen")
     debug_data = []
     for asset in portfolio_assets:
         ticker = asset["Ticker"]
         data = daily_prices.get(ticker)
         if data is not None and not data.empty:
-            price = data.iloc[-1]["Close"]
-            value = price * asset["Quantity"]
-            yesterday_open = yesterday_open_dict.get(ticker)
-            
-            # Calculate daily changes
-            if yesterday_open and yesterday_open > 0:
-                delta_price = price - yesterday_open
-                delta_percent = (delta_price / yesterday_open) * 100
-                delta_price_str = f"€{delta_price:+.2f}"
-                delta_percent_str = f"{delta_percent:+.2f}%"
-            else:
-                delta_price_str = "N/A"
-                delta_percent_str = "N/A"
+            try:
+                price = data.iloc[-1]["Close"].item()  # Scalar conversion
+                value = price * asset["Quantity"]
+                yesterday_open = yesterday_open_dict.get(ticker)
+                
+                # Calculate daily changes
+                if yesterday_open and yesterday_open > 0:
+                    delta_price = price - yesterday_open
+                    delta_percent = (delta_price / yesterday_open) * 100
+                    delta_price_str = f"€{delta_price:+.2f}"
+                    delta_percent_str = f"{delta_percent:+.2f}%"
+                else:
+                    delta_price_str = "N/A"
+                    delta_percent_str = "N/A"
 
-            debug_data.append({
-                "Ticker": ticker,
-                "Menge": asset["Quantity"],
-                "Preis": f"€{price:.2f}",
-                "Wert": f"€{value:,.2f}",
-                "% Anteil": f"{(value / total_portfolio_value * 100):.2f}%",
-                "Tagesänderung (€)": delta_price_str,
-                "Tagesänderung (%)": delta_percent_str
-            })
+                debug_data.append({
+                    "Ticker": ticker,
+                    "Menge": asset["Quantity"],
+                    "Preis": f"€{price:.2f}",
+                    "Wert": f"€{value:,.2f}",
+                    "% Anteil": f"{(value / total_portfolio_value * 100):.2f}%",
+                    "Tagesänderung (€)": delta_price_str,
+                    "Tagesänderung (%)": delta_percent_str
+                })
+            except (KeyError, AttributeError):
+                debug_data.append({
+                    "Ticker": ticker,
+                    "Menge": asset["Quantity"],
+                    "Preis": "Fehler",
+                    "Wert": "Fehler",
+                    "% Anteil": "N/A",
+                    "Tagesänderung (€)": "N/A",
+                    "Tagesänderung (%)": "N/A"
+                })
         else:
             debug_data.append({
                 "Ticker": ticker,
