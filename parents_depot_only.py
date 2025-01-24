@@ -8,23 +8,23 @@ import json
 
 # Initial portfolio and ownership
 portfolio_assets = [
-    {"Ticker": "URTH", "Quantity": 480},
-    {"Ticker": "WFC", "Quantity": 400},
-    {"Ticker": "HLBZF", "Quantity": 185},
-    {"Ticker": "C", "Quantity": 340},
-    {"Ticker": "BPAQF", "Quantity": 2000},
-    {"Ticker": "POAHF", "Quantity": 150},
-    {"Ticker": "EXV1.DE", "Quantity": 284},
-    {"Ticker": "1COV.DE", "Quantity": 100},
-    {"Ticker": "SPY", "Quantity": 10},
-    {"Ticker": "HYMTF", "Quantity": 100},
-    {"Ticker": "SHEL", "Quantity": 75},
-    {"Ticker": "DAX", "Quantity": 6},
-    {"Ticker": "PLTR", "Quantity": 100},
-    {"Ticker": "UQ2B.DU", "Quantity": 5},
-    {"Ticker": "DB", "Quantity": 1},
-    {"Ticker": "GS", "Quantity": 9},
-    {"Ticker": "MBG.DE", "Quantity": 50},
+    {"Ticker": "URTH", "Quantity": 480, "Name": "Welt Index"},
+    {"Ticker": "WFC", "Quantity": 400, "Name": "Wells Fargo (Bank)"},
+    {"Ticker": "HLBZF", "Quantity": 185, "Name": "Heidelberg Materials"},
+    {"Ticker": "C", "Quantity": 340, "Name": "Citigroup (Bank)"},
+    {"Ticker": "BPAQF", "Quantity": 2000, "Name": "British Petroleum (Öl/Gas)"},
+    {"Ticker": "POAHF", "Quantity": 150, "Name": "Porsche (Auto)"},
+    {"Ticker": "EXV1.DE", "Quantity": 284, "Name": "Bank Index"},
+    {"Ticker": "1COV.DE", "Quantity": 100, "Name": "Covestro (Chemie)"},
+    {"Ticker": "SPY", "Quantity": 10, "Name": "USA Index"},
+    {"Ticker": "HYMTF", "Quantity": 100, "Name": "Hyundai (Auto)"},
+    {"Ticker": "SHEL", "Quantity": 75, "Name": "Shell (Öl/Gas)"},
+    {"Ticker": "DAX", "Quantity": 6, "Name": "Deutschaland Index"},
+    {"Ticker": "PLTR", "Quantity": 100, "Name": "Palantir (Rüstung Software)"},
+    {"Ticker": "UQ2B.DU", "Quantity": 5, "Name": "Europa Index"},
+    {"Ticker": "DB", "Quantity": 1, "Name": "Deutsche Bank"},
+    {"Ticker": "GS", "Quantity": 9, "Name": "Goldman Sachs (Bank)"},
+    {"Ticker": "MBG.DE", "Quantity": 50, "Name": "Mercedes (Auto)"},
 ]
 
 initial_cash = 42000
@@ -202,14 +202,14 @@ def main():
     else:
         st.write("Keine Daten über dem Schwellenwert von €50.000 verfügbar.")
 
-    # Detailed positions with performance analysis
-    st.subheader("Detaillierte Aktienpositionen")
+    # Calculate performance data and prepare table
     debug_data = []
-    max_percentage_gain = {"ticker": None, "value": -float('inf')}
-    max_total_gain = {"ticker": None, "value": -float('inf')}
+    max_percentage_gain = {"name": None, "value": -float('inf')}
+    max_total_gain = {"name": None, "value": -float('inf')}
     
     for asset in portfolio_assets:
         ticker = asset["Ticker"]
+        name = asset["Name"]
         data = daily_prices.get(ticker)
         quantity = asset["Quantity"]
         
@@ -226,9 +226,9 @@ def main():
                     
                     # Update performance trackers
                     if delta_percent > max_percentage_gain["value"]:
-                        max_percentage_gain = {"ticker": ticker, "value": delta_percent}
+                        max_percentage_gain = {"name": name, "value": delta_percent}
                     if total_gain > max_total_gain["value"]:
-                        max_total_gain = {"ticker": ticker, "value": total_gain}
+                        max_total_gain = {"name": name, "value": total_gain}
                         
                     delta_price_str = f"€{delta_price:+.2f}"
                     delta_percent_str = f"{delta_percent:+.2f}%"
@@ -240,6 +240,7 @@ def main():
 
                 debug_data.append({
                     "Ticker": ticker,
+                    "Name": name,
                     "Menge": quantity,
                     "Preis": f"€{price:.2f}",
                     "Wert": f"€{value:,.2f}",
@@ -252,6 +253,7 @@ def main():
             except (KeyError, AttributeError):
                 debug_data.append({
                     "Ticker": ticker,
+                    "Name": name,
                     "Menge": quantity,
                     "Preis": "Fehler",
                     "Wert": "Fehler",
@@ -263,6 +265,7 @@ def main():
         else:
             debug_data.append({
                 "Ticker": ticker,
+                "Name": name,
                 "Menge": quantity,
                 "Preis": "Fehlend",
                 "Wert": "Fehlend",
@@ -272,19 +275,31 @@ def main():
                 "Gesamtgewinn": "N/A"
             })
 
-    # Display positions table
-    st.dataframe(pd.DataFrame(debug_data))
-
-    # Performance highlights
-    if max_percentage_gain["ticker"] and max_total_gain["ticker"]:
+    # Performance highlights above the table
+    st.subheader("Tagesperformance")
+    if max_percentage_gain["name"] and max_total_gain["name"]:
         st.success(
-            f"**Die beste Performance hatte heute {max_percentage_gain['ticker']} "
-            f"({max_percentage_gain['value']:.2f}%). "
-            f"Am meisten Geld brachte {max_total_gain['ticker']} "
-            f"(€{max_total_gain['value']:+,.2f}).**"
+            f"🏆 **Beste Performance Heute:** {max_percentage_gain['name']} "
+            f"({max_percentage_gain['value']:.2f}%)\n\n"
+            f"💰 **Höchster Gewinn Heute:** {max_total_gain['name']} "
+            f"(€{max_total_gain['value']:+,.2f})"
         )
+    elif max_percentage_gain["name"] or max_total_gain["name"]:
+        st.warning("⚠️ Teilweise Daten verfügbar:")
+        if max_percentage_gain["name"]:
+            st.write(f"- 🥇 {max_percentage_gain['name']} ({max_percentage_gain['value']:.2f}%)")
+        if max_total_gain["name"]:
+            st.write(f"- 🥇 {max_total_gain['name']} (€{max_total_gain['value']:+,.2f})")
     else:
-        st.warning("Keine vollständigen Tagesdaten verfügbar für Performance-Analyse")
+        st.warning("⚠️ Keine vollständigen Tagesdaten verfügbar")
+
+    # Detailed positions table
+    st.subheader("Detaillierte Positionen")
+    st.dataframe(
+        pd.DataFrame(debug_data),
+        height=600,
+        use_container_width=True
+    )
 
 if __name__ == "__main__":
     main()
