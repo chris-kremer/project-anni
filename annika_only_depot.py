@@ -63,7 +63,9 @@ def fetch_current_prices(tickers):
 
         # Fallback for HLBZF
         if ticker == "HLBZF" and (prices[ticker] is None or pd.isna(prices[ticker])):
-            prices[ticker] = 120  # Use default value
+            prices[ticker] = 133  # Use default value
+        if ticker == "POAHF" and (prices[ticker] is None or pd.isna(prices[ticker])):
+            prices[ticker] = 33  # Use default value
 
     return prices
 
