@@ -48,9 +48,8 @@ def fetch_historical_prices(tickers):
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
-            data = stock.history(period="2y", interval="1mo")
+            data = stock.history(period="1y", interval="1wk")  # Changed interval to 1 week
             if not data.empty:
-                # Fixed deprecated fillna method
                 historical_prices[ticker] = data["Close"].ffill()
             else:
                 historical_prices[ticker] = None
@@ -70,14 +69,14 @@ def calculate_value(portfolio, price_dict, initial_cash, ownership):
             total_value += price * quantity
     return total_value * (ownership["Percentage"] / 100)
 
-def calculate_monthly_share_value(portfolio, historical_prices, ownership, initial_cash):
+def calculate_weekly_share_value(portfolio, historical_prices, ownership, initial_cash):
     all_dates = set()
     for prices in historical_prices.values():
         if prices is not None:
             all_dates.update(prices.index)
     all_dates = sorted(all_dates)
 
-    monthly_values = []
+    weekly_values = []
     for date in all_dates:
         total_value = initial_cash
         for asset in portfolio:
@@ -90,10 +89,12 @@ def calculate_monthly_share_value(portfolio, historical_prices, ownership, initi
                     continue
                 total_value += price * quantity
         share_value = total_value * (ownership["Percentage"] / 100)
-        if share_value >= 500:
-            monthly_values.append({"Date": date, "Share Value": share_value})
+        if share_value >= 500:  # Keep threshold for valid values
+            weekly_values.append({"Date": date, "Share Value": share_value})
 
-    return pd.DataFrame(monthly_values)
+    return pd.DataFrame(weekly_values)
+
+
 def fetch_daily_prices(tickers):
     daily_prices = {}
     for ticker in tickers:
@@ -173,34 +174,34 @@ def main():
             )
         else:
             st.metric("Seit gestern Open", "N/A")
-
-    # Chart section
-    st.subheader("Wertentwicklung des ges. Depot über die letzten 2 Jahre:")
-    monthly_share_value = calculate_monthly_share_value(
+    #chart
+    st.subheader("Wertentwicklung des Depot über die letzten 12 Monate")
+    weekly_share_value = calculate_weekly_share_value(
         portfolio_assets, historical_prices, ownership, initial_cash
     )
 
-    if not monthly_share_value.empty:
-        monthly_share_value["Date"] = monthly_share_value["Date"].dt.tz_convert(local_tz)
+    if not weekly_share_value.empty:
+        weekly_share_value["Date"] = weekly_share_value["Date"].dt.tz_convert(local_tz)
         current_ts = pd.Timestamp.now(tz=local_tz)
-        last_date = monthly_share_value["Date"].iloc[-1]
+        last_date = weekly_share_value["Date"].iloc[-1]
         
         if current_ts > last_date:
             new_entry = pd.DataFrame([{
                 "Date": current_ts,
                 "Share Value": current_value
             }])
-            monthly_share_value = pd.concat(
-                [monthly_share_value, new_entry],
+            weekly_share_value = pd.concat(
+                [weekly_share_value, new_entry],
                 ignore_index=True
             )
 
         st.line_chart(
-            monthly_share_value.set_index("Date")["Share Value"],
+            weekly_share_value.set_index("Date")["Share Value"],
             use_container_width=True
         )
     else:
         st.write("Keine Daten über dem Schwellenwert von €50.000 verfügbar.")
+
 
     # Calculate performance data and prepare table
     debug_data = []
