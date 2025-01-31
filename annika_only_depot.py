@@ -1,156 +1,308 @@
 import yfinance as yf
 import pandas as pd
 import streamlit as st
-import json
+from datetime import datetime, timedelta
+import pytz
 import os
-from datetime import datetime
+import json
 
 # Initial portfolio and ownership
-portfolio = [
-    {"Ticker": "URTH", "Quantity": 480},
-    {"Ticker": "WFC", "Quantity": 400},
-    {"Ticker": "HLBZF", "Quantity": 185},
-    {"Ticker": "C", "Quantity": 340},
-    {"Ticker": "BPAQF", "Quantity": 2000},
-    {"Ticker": "POAHF", "Quantity": 150},
-    {"Ticker": "EXV1.DE", "Quantity": 284},
-    {"Ticker": "1COV.DE", "Quantity": 100},
-    {"Ticker": "SPY", "Quantity": 10},
-    {"Ticker": "HYMTF", "Quantity": 100},
-    {"Ticker": "SHEL", "Quantity": 75},
-    {"Ticker": "DAX", "Quantity": 6},
-    {"Ticker": "PLTR", "Quantity": 100},
-    {"Ticker": "UQ2B.DU", "Quantity": 5},
-    {"Ticker": "DB", "Quantity": 1},
-    {"Ticker": "GS", "Quantity": 9},
-    {"Ticker": "MBG.DE", "Quantity": 50},
+portfolio_assets = [
+    {"Ticker": "URTH", "Quantity": 480, "Name": "Welt Index"},
+    {"Ticker": "WFC", "Quantity": 400, "Name": "Wells Fargo (Bank)"},
+    {"Ticker": "HLBZF", "Quantity": 185, "Name": "Heidelberg Materials"},
+    {"Ticker": "C", "Quantity": 340, "Name": "Citigroup (Bank)"},
+    {"Ticker": "BPAQF", "Quantity": 2000, "Name": "British Petroleum (Öl/Gas)"},
+    {"Ticker": "POAHF", "Quantity": 150, "Name": "Porsche (Auto)"},
+    {"Ticker": "EXV1.DE", "Quantity": 284, "Name": "Bank Index"},
+    {"Ticker": "1COV.DE", "Quantity": 100, "Name": "Covestro (Chemie)"},
+    {"Ticker": "SPY", "Quantity": 10, "Name": "USA Index"},
+    {"Ticker": "HYMTF", "Quantity": 100, "Name": "Hyundai (Auto)"},
+    {"Ticker": "SHEL", "Quantity": 75, "Name": "Shell (Öl/Gas)"},
+    {"Ticker": "DAX", "Quantity": 6, "Name": "Deutschaland Index"},
+    {"Ticker": "PLTR", "Quantity": 100, "Name": "Palantir (Rüstung Software)"},
+    {"Ticker": "UQ2B.DU", "Quantity": 5, "Name": "Europa Index"},
+    {"Ticker": "DB", "Quantity": 1, "Name": "Deutsche Bank"},
+    {"Ticker": "GS", "Quantity": 9, "Name": "Goldman Sachs (Bank)"},
+    {"Ticker": "MBG.DE", "Quantity": 50, "Name": "Mercedes (Auto)"},
 ]
 
-initial_cash_position = 17000
-data_file = "annika_data.json"
+initial_cash = 17000
+data_file_path = "parents_data.json"
+local_tz = pytz.timezone("Europe/Berlin")
 
-# Load or initialize Annika's ownership and transaction log
-def load_data():
-    if os.path.exists(data_file):
-        with open(data_file, "r") as f:
-            data = json.load(f)
-            return data["annika"], data["transactions"]
+def load_ownership_data():
+    if os.path.exists(data_file_path):
+        try:
+            with open(data_file_path, "r") as file:
+                data = json.load(file)
+                return data.get("ownership", {"Percentage": 0.294365599})
+        except json.JSONDecodeError:
+            st.warning("Data file is corrupt. Using default values.")
+            return {"Percentage": 0.294365599}
     else:
-        # Default ownership for Annika
-        annika = {"Percentage": 0.14415851}
-        transactions = []
-        return annika, transactions
+        return {"Percentage": 0.294365599}
 
-
-def save_data(annika, transactions):
-    with open(data_file, "w") as f:
-        json.dump({"annika": annika, "transactions": transactions}, f)
-
-
-# Fetch current prices
-def fetch_current_prices(tickers):
-    prices = {}
+def fetch_historical_prices(tickers):
+    historical_prices = {}
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
-            data = stock.history(period="1d")
-            if not data.empty and "Close" in data.columns:
-                prices[ticker] = data["Close"].iloc[-1]
+            data = stock.history(period="2y", interval="1mo")
+            if not data.empty:
+                # Fixed deprecated fillna method
+                historical_prices[ticker] = data["Close"].ffill()
             else:
-                prices[ticker] = None
-        except Exception:
-            prices[ticker] = None
-
-        # Fallback for HLBZF
-        if ticker == "HLBZF" and (prices[ticker] is None or pd.isna(prices[ticker])):
-            prices[ticker] = 133  # Use default value
-        if ticker == "POAHF" and (prices[ticker] is None or pd.isna(prices[ticker])):
-            prices[ticker] = 33  # Use default value
-
-    return prices
+                historical_prices[ticker] = None
+        except Exception as e:
+            print(f"Error fetching historical data for {ticker}: {e}")
+            historical_prices[ticker] = None
+    return historical_prices
 
 
-# Calculate portfolio value
-def calculate_portfolio_value(portfolio, prices, cash):
-    total_value = cash
+def calculate_value(portfolio, price_dict, initial_cash, ownership):
+    total_value = initial_cash
     for asset in portfolio:
         ticker = asset["Ticker"]
         quantity = asset["Quantity"]
-        price = prices.get(ticker)
-        if price:
+        price = price_dict.get(ticker)
+        if price is not None and pd.notna(price) and price > 0:
             total_value += price * quantity
-    return total_value
+    return total_value * (ownership["Percentage"] / 100)
 
+def calculate_monthly_share_value(portfolio, historical_prices, ownership, initial_cash):
+    all_dates = set()
+    for prices in historical_prices.values():
+        if prices is not None:
+            all_dates.update(prices.index)
+    all_dates = sorted(all_dates)
 
-# Recalculate Annika's ownership percentage after a transaction
-def recalculate_annika(annika, total_portfolio_value, transaction_amount):
-    # Adjust Annika's share value
-    current_share_value = total_portfolio_value * (annika["Percentage"] / 100)
-    updated_share_value = current_share_value + transaction_amount
+    monthly_values = []
+    for date in all_dates:
+        total_value = initial_cash
+        for asset in portfolio:
+            ticker = asset["Ticker"]
+            quantity = asset["Quantity"]
+            prices = historical_prices.get(ticker)
+            if prices is not None and date in prices:
+                price = prices.loc[date]
+                if pd.isna(price) or price <= 0:
+                    continue
+                total_value += price * quantity
+        share_value = total_value * (ownership["Percentage"] / 100)
+        if share_value >= 500:
+            monthly_values.append({"Date": date, "Share Value": share_value})
 
-    # Update the total portfolio value with the transaction
-    new_total_portfolio_value = total_portfolio_value + transaction_amount
+    return pd.DataFrame(monthly_values)
+def fetch_daily_prices(tickers):
+    daily_prices = {}
+    for ticker in tickers:
+        try:
+            data = yf.download(ticker, period="5d", interval="1d", progress=False)
+            if not data.empty:
+                # Fix timezone handling: Localize to UTC first, then convert to local
+                data.index = data.index.tz_localize('UTC').tz_convert(local_tz)
+                daily_prices[ticker] = data
+            else:
+                daily_prices[ticker] = None
+        except Exception as e:
+            print(f"Error fetching daily data for {ticker}: {e}")
+            daily_prices[ticker] = None
+    return daily_prices
 
-    # Recalculate Annika's percentage
-    annika["Percentage"] = (updated_share_value / new_total_portfolio_value) * 100
-    return annika, new_total_portfolio_value
-
-
-# Streamlit app
 def main():
-    annika, transactions = load_data()
-
-    st.title("Annika's Stocks")
+    st.title("Anni's Aktien")
+    ownership = load_ownership_data()
 
     # Fetch prices
-    tickers = [asset["Ticker"] for asset in portfolio]
-    st.write("Fetching current prices...")
-    prices = fetch_current_prices(tickers)
+    tickers = [asset["Ticker"] for asset in portfolio_assets]
+    historical_prices = fetch_historical_prices(tickers)
+    daily_prices = fetch_daily_prices(tickers)
 
-    # Calculate portfolio values
-    total_portfolio_value = calculate_portfolio_value(portfolio, prices, initial_cash_position)
+    # Calculate values
+    current_date = datetime.now(local_tz).date()
+    
+    # Yesterday's open values
+    yesterday_open_dict = {}
+    for ticker in tickers:
+        data = daily_prices.get(ticker)
+        if data is not None and not data.empty:
+            before_today = data[data.index.date < current_date]
+            if not before_today.empty:
+                try:
+                    yesterday_open_dict[ticker] = before_today.iloc[-1]["Open"].item()
+                except (KeyError, AttributeError):
+                    yesterday_open_dict[ticker] = None
 
-    # Display Annika's current share (enlarged and prominent)
-    st.subheader("💵 Annika's Current Portfolio Value")
-    annika_value = total_portfolio_value * (annika["Percentage"] / 100)
-    st.markdown(f"<h1 style='text-align: center; color: green;'>€{annika_value:,.2f}</h1>", unsafe_allow_html=True)
-    st.markdown(f"<h4 style='text-align: center;'>Share: {annika['Percentage']:.2f}%</h4>", unsafe_allow_html=True)
+    # Current price dictionary
+    current_price_dict = {}
+    for ticker in tickers:
+        data = daily_prices.get(ticker)
+        if data is not None and not data.empty:
+            try:
+                current_price_dict[ticker] = data.iloc[-1]["Close"].item()
+            except (KeyError, AttributeError):
+                current_price_dict[ticker] = None
 
-    # Add a horizontal rule for spacing
-    st.markdown("<hr style='border: 1px solid #ddd;'>", unsafe_allow_html=True)
+    # Calculate current value
+    current_value = calculate_value(portfolio_assets, current_price_dict, initial_cash, ownership)
+    total_portfolio_value = sum(
+        price * asset["Quantity"] for asset, price in zip(portfolio_assets, current_price_dict.values())
+    ) + initial_cash
 
-    # Show table with total value of each position
-    st.subheader("📊 Portfolio Overview")
-    position_values = []
-    for asset in portfolio:
-        ticker = asset["Ticker"]
-        quantity = asset["Quantity"]
-        price = prices.get(ticker, 0)
-        total_value = price * quantity if price else 0
-        position_values.append({"Ticker": ticker, "Quantity": quantity, "Price (€)": price, "Total Value (€)": total_value})
+    # Display metrics
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric(
+            label="Aktueller Wert",
+            value=f"€{current_value:,.2f}",
+            delta=f"{((current_value / 650) - 1) * 100:.2f}%",
+            delta_color="normal"
+        )
+    
+    with col2:
+        if yesterday_open_dict:
+            yesterday_value = calculate_value(portfolio_assets, yesterday_open_dict, initial_cash, ownership)
+            delta_value = current_value - yesterday_value
+            delta_percent = (delta_value / yesterday_value) * 100 if yesterday_value != 0 else 0
+            st.metric(
+                label="Seit gestern morgen",
+                value=f"€{delta_value:+,.2f}",
+                delta=f"{delta_percent:+.2f}%",
+                delta_color="normal"
+            )
+        else:
+            st.metric("Seit gestern Open", "N/A")
 
-    position_df = pd.DataFrame(position_values)
-    st.table(position_df)
+    # Chart section
+    st.subheader("Wertentwicklung des ges. Depot über die letzten 2 Jahre:")
+    monthly_share_value = calculate_monthly_share_value(
+        portfolio_assets, historical_prices, ownership, initial_cash
+    )
 
-    # Transaction section
-    st.subheader("Log an Investment/Withdraw")
-    amount = st.number_input("Enter Amount (negative for withdrawal)", value=0.0, step=100.0)
-    if st.button("Submit Transaction"):
-        # Recalculate Annika's ownership
-        annika, total_portfolio_value = recalculate_annika(annika, total_portfolio_value, amount)
-        # Log the transaction
-        transactions.append({"Amount": amount, "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
-        save_data(annika, transactions)
-        st.success("Transaction processed successfully!")
+    if not monthly_share_value.empty:
+        monthly_share_value["Date"] = monthly_share_value["Date"].dt.tz_convert(local_tz)
+        current_ts = pd.Timestamp.now(tz=local_tz)
+        last_date = monthly_share_value["Date"].iloc[-1]
+        
+        if current_ts > last_date:
+            new_entry = pd.DataFrame([{
+                "Date": current_ts,
+                "Share Value": current_value
+            }])
+            monthly_share_value = pd.concat(
+                [monthly_share_value, new_entry],
+                ignore_index=True
+            )
 
-    # Transaction log
-    st.subheader("Transaction Log")
-    if transactions:
-        log_df = pd.DataFrame(transactions)
-        st.table(log_df)
+        st.line_chart(
+            monthly_share_value.set_index("Date")["Share Value"],
+            use_container_width=True
+        )
     else:
-        st.write("No transactions logged yet.")
+        st.write("Keine Daten über dem Schwellenwert von €50.000 verfügbar.")
 
+    # Calculate performance data and prepare table
+    debug_data = []
+    max_percentage_gain = {"name": None, "value": -float('inf')}
+    max_total_gain = {"name": None, "value": -float('inf')}
+    
+    for asset in portfolio_assets:
+        ticker = asset["Ticker"]
+        name = asset["Name"]
+        data = daily_prices.get(ticker)
+        quantity = asset["Quantity"]
+        
+        if data is not None and not data.empty:
+            try:
+                price = data.iloc[-1]["Close"].item()
+                value = price * quantity
+                yesterday_open = yesterday_open_dict.get(ticker)
+                
+                if yesterday_open and yesterday_open > 0 and price:
+                    delta_price = price - yesterday_open
+                    delta_percent = (delta_price / yesterday_open) * 100
+                    total_gain = delta_price * quantity * ownership["Percentage"] * 0.01
+                    
+                    # Update performance trackers
+                    if delta_percent > max_percentage_gain["value"]:
+                        max_percentage_gain = {"name": name, "value": delta_percent}
+                    if total_gain > max_total_gain["value"]:
+                        max_total_gain = {"name": name, "value": total_gain}
+                        
+                    delta_price_str = f"€{delta_price:+.2f}"
+                    delta_percent_str = f"{delta_percent:+.2f}%"
+                    total_gain_str = f"€{total_gain:+,.2f}"
+                else:
+                    delta_price_str = "N/A"
+                    delta_percent_str = "N/A"
+                    total_gain_str = "N/A"
+
+                debug_data.append({
+                    #"Ticker": ticker,
+                    "Name": name,
+                    "Menge": quantity,
+                    "Preis": f"€{price:.2f}",
+                    "Wert": f"€{value:,.2f}",
+                    "% Anteil": f"{(value / total_portfolio_value * 100):.2f}%",
+                    #"Tagesänderung (€)": delta_price_str,
+                    "Tagesänderung (%)": delta_percent_str,
+                    "Gewinn für dich": total_gain_str
+                })
+                
+            except (KeyError, AttributeError):
+                debug_data.append({
+                    "Ticker": ticker,
+                    "Name": name,
+                    "Menge": quantity,
+                    "Preis": "Fehler",
+                    "Wert": "Fehler",
+                    "% Anteil": "N/A",
+                    "Tagesänderung (€)": "N/A",
+                    "Tagesänderung (%)": "N/A",
+                    "Gesamtgewinn": "N/A"
+                })
+        else:
+            debug_data.append({
+                "Ticker": ticker,
+                "Name": name,
+                "Menge": quantity,
+                "Preis": "Fehlend",
+                "Wert": "Fehlend",
+                "% Anteil": "N/A",
+                "Tagesänderung (€)": "N/A",
+                "Tagesänderung (%)": "N/A",
+                "Gesamtgewinn": "N/A"
+            })
+
+    # Performance highlights above the table
+    st.subheader("Tagesperformance")
+    if max_percentage_gain["name"] and max_total_gain["name"]:
+        adjusted_best_total_gain = max_total_gain["value"] 
+
+        st.success(
+            f"🏆 **Beste Performance Heute:** {max_percentage_gain['name']} "
+            f"({max_percentage_gain['value']:.2f}%)\n\n"
+            f"💰 **Höchster Gewinn Heute:** {max_total_gain['name']} "
+            f"(€{adjusted_best_total_gain:+,.2f} für dich)"
+        )
+    elif max_percentage_gain["name"] or max_total_gain["name"]:
+        st.warning("⚠️ Teilweise Daten verfügbar:")
+        if max_percentage_gain["name"]:
+            st.write(f"- 🥇 {max_percentage_gain['name']} ({max_percentage_gain['value']:.2f}%)")
+        if max_total_gain["name"]:
+            adjusted_best_total_gain = max_total_gain["value"] * ownership["Percentage"]
+            st.write(f"- 🥇 {max_total_gain['name']} (€{adjusted_best_total_gain:+,.2f})")
+    else:
+        st.warning("⚠️ Keine vollständigen Tagesdaten verfügbar")
+
+    # Detailed positions table
+    st.subheader("Detaillierte Positionen")
+    st.dataframe(
+        pd.DataFrame(debug_data),
+        height=600,
+        use_container_width=True
+    )
 
 if __name__ == "__main__":
     main()
