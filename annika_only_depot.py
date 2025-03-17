@@ -148,13 +148,7 @@ def main():
     current_value = calculate_portfolio_value(today, daily_data, PORTFOLIO_ASSETS, INITIAL_CASH)
     current_share_value = current_value * ownership_fraction
 
-    # For the "since yesterday" metric, use the last two available trading days
-    yesterday_value = None
-    for ticker, df in daily_data.items():
-        if df is not None and len(df) >= 2:
-            # Assuming the DataFrame is sorted by date, get the second-to-last closing price
-            pass  # We will compute on an aggregated level
-    # Instead, compute the portfolio value as of the most recent day before today.
+    # Compute yesterday's portfolio value as the most recent trading day before today.
     previous_dates = []
     for df in daily_data.values():
         if df is not None and not df.empty:
@@ -166,11 +160,13 @@ def main():
         yesterday_value = calculate_portfolio_value(last_trading_day, daily_data, PORTFOLIO_ASSETS, INITIAL_CASH)
         yesterday_share_value = yesterday_value * ownership_fraction
         delta_value = current_share_value - yesterday_share_value
-        delta_percent = (delta_value / yesterday_share_value * 100) if yesterday_share_value else 0
+        # Ensure that yesterday_share_value is a scalar before doing the division.
+        yesterday_share_value = float(yesterday_share_value)
+        delta_percent = (delta_value / yesterday_share_value * 100) if (yesterday_share_value is not None and yesterday_share_value != 0) else 0
     else:
         yesterday_share_value = None
         delta_value = None
-        delta_percent = None
+        delta_percent = 0
 
     # Display metrics
     col1, col2 = st.columns(2)
