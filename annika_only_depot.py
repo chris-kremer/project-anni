@@ -58,7 +58,6 @@ def fetch_historical_prices(tickers):
             historical_prices[ticker] = None
     return historical_prices
 
-
 def calculate_value(portfolio, price_dict, initial_cash, ownership):
     total_value = initial_cash
     for asset in portfolio:
@@ -93,7 +92,6 @@ def calculate_weekly_share_value(portfolio, historical_prices, ownership, initia
             weekly_values.append({"Date": date, "Share Value": share_value})
 
     return pd.DataFrame(weekly_values)
-
 
 def fetch_daily_prices(tickers):
     daily_prices = {}
@@ -174,8 +172,9 @@ def main():
             )
         else:
             st.metric("Seit gestern Open", "N/A")
-    #chart
-    st.subheader("Wertentwicklung des Depot über die letzten 12 Monate")
+    
+    # Chart: 1 Jahr Performance des Portfolios (Standardisiert)
+    st.subheader("1 Jahr Performance des Portfolios (Standardisiert)")
     weekly_share_value = calculate_weekly_share_value(
         portfolio_assets, historical_prices, ownership, initial_cash
     )
@@ -194,14 +193,17 @@ def main():
                 [weekly_share_value, new_entry],
                 ignore_index=True
             )
+        
+        # Standardize the portfolio values: set the first value to 100 and scale the rest accordingly
+        baseline = weekly_share_value["Share Value"].iloc[0]
+        weekly_share_value["Standardized"] = (weekly_share_value["Share Value"] / baseline) * 100
 
         st.line_chart(
-            weekly_share_value.set_index("Date")["Share Value"],
+            weekly_share_value.set_index("Date")["Standardized"],
             use_container_width=True
         )
     else:
         st.write("Keine Daten über dem Schwellenwert von €50.000 verfügbar.")
-
 
     # Calculate performance data and prepare table
     debug_data = []
@@ -240,13 +242,11 @@ def main():
                     total_gain_str = "N/A"
 
                 debug_data.append({
-                    #"Ticker": ticker,
                     "Name": name,
                     "Menge": quantity,
                     "Preis": f"€{price:.2f}",
                     "Wert": f"€{value:,.2f}",
                     "% Anteil": f"{(value / total_portfolio_value * 100):.2f}%",
-                    #"Tagesänderung (€)": delta_price_str,
                     "Tagesänderung (%)": delta_percent_str,
                     "Gewinn für dich": total_gain_str
                 })
@@ -280,7 +280,6 @@ def main():
     st.subheader("Tagesperformance")
     if max_percentage_gain["name"] and max_total_gain["name"]:
         adjusted_best_total_gain = max_total_gain["value"] 
-
         st.success(
             f"🏆 **Beste Performance Heute:** {max_percentage_gain['name']} "
             f"({max_percentage_gain['value']:.2f}%)\n\n"
