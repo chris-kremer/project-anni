@@ -146,7 +146,7 @@ def main():
     
     today = datetime.now(LOCAL_TZ).date()
     current_value = calculate_portfolio_value(today, daily_data, PORTFOLIO_ASSETS, INITIAL_CASH)
-    current_share_value = current_value * ownership_fraction
+    current_share_value = float(current_value * ownership_fraction)
 
     # Compute yesterday's portfolio value as the most recent trading day before today.
     previous_dates = []
@@ -158,11 +158,9 @@ def main():
     if previous_dates:
         last_trading_day = max(previous_dates)
         yesterday_value = calculate_portfolio_value(last_trading_day, daily_data, PORTFOLIO_ASSETS, INITIAL_CASH)
-        yesterday_share_value = yesterday_value * ownership_fraction
+        yesterday_share_value = float(yesterday_value * ownership_fraction)
         delta_value = current_share_value - yesterday_share_value
-        # Ensure that yesterday_share_value is a scalar before doing the division.
-        yesterday_share_value = float(yesterday_share_value)
-        delta_percent = (delta_value / yesterday_share_value * 100) if (yesterday_share_value is not None and yesterday_share_value != 0) else 0
+        delta_percent = (delta_value / yesterday_share_value * 100) if (yesterday_share_value != 0) else 0
     else:
         yesterday_share_value = None
         delta_value = None
@@ -173,17 +171,16 @@ def main():
     with col1:
         st.metric(
             label="Aktueller Wert",
-            value=f"€{current_share_value:,.2f}",
-            # Here the delta compared to an arbitrary baseline is shown (you might adjust as needed)
-            delta=f"{((current_share_value - 650) / 650) * 100:.2f}%",
+            value=f"€{float(current_share_value):,.2f}",
+            delta=f"{((float(current_share_value) - 650) / 650) * 100:.2f}%",
             delta_color="normal"
         )
     with col2:
         if yesterday_share_value is not None:
             st.metric(
                 label="Seit gestern",
-                value=f"€{delta_value:+,.2f}",
-                delta=f"{delta_percent:+.2f}%",
+                value=f"€{float(delta_value):+,.2f}",
+                delta=f"{float(delta_percent):+,.2f}%",
                 delta_color="normal"
             )
         else:
