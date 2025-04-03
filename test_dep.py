@@ -36,7 +36,7 @@ LOCAL_TZ_NAME: str = "Europe/Berlin" # Timezone for display
 LOCAL_TZ = pytz.timezone(LOCAL_TZ_NAME)
 
 # --- Constants ---
-DEFAULT_OWNERSHIP_PERCENTAGE: float = 29.4365599 # Default if file is missing/corrupt
+DEFAULT_OWNERSHIP_PERCENTAGE: float = 0.343225979 # Default if file is missing/corrupt
 HISTORICAL_PERIOD: str = "1y" # Fetch 1 year of data
 HISTORICAL_INTERVAL: str = "1wk" # Use weekly intervals for the chart
 DAILY_PERIOD: str = "5d" # Fetch last 5 days for current/previous day prices
