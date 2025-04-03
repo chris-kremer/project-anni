@@ -20,7 +20,7 @@ portfolio_assets = [
     {"Ticker": "SPY", "Quantity": 10, "Name": "USA Index"},
     {"Ticker": "HYMTF", "Quantity": 100, "Name": "Hyundai (Auto)"}, # Note: OTC ticker
     {"Ticker": "SHEL", "Quantity": 75, "Name": "Shell (Öl/Gas)"}, # Assumes primary listing (e.g., NYSE/LSE)
-    {"Ticker": "DAX", "Quantity": 6, "Name": "Deutschaland Index"}, # Note: ^GDAXI is the common Yahoo Finance ticker for DAX index
+    {"Ticker": "DAX", "Quantity": 0.0114, "Name": "Deutschland Index"}, # Note: ^GDAXI is the common Yahoo Finance ticker for DAX index
     {"Ticker": "PLTR", "Quantity": 100, "Name": "Palantir (Rüstung Software)"},
     {"Ticker": "UQ2B.DU", "Quantity": 5, "Name": "Europa Index"}, # Dusseldorf ticker
     {"Ticker": "DB", "Quantity": 1, "Name": "Deutsche Bank"}, # Assumes primary listing (e.g., NYSE) - Use DBK.DE for Xetra
