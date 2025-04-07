@@ -8,26 +8,29 @@ import json
 
 # Initial portfolio and ownership
 portfolio_assets = [
-    {"Ticker": "URTH", "Quantity": 480, "Name": "Welt Index"},
+    {"Ticker": "URTH", "Quantity": 520.28, "Name": "Welt Index"},
     {"Ticker": "WFC", "Quantity": 400, "Name": "Wells Fargo (Bank)"},
     {"Ticker": "HLBZF", "Quantity": 185, "Name": "Heidelberg Materials"},
     {"Ticker": "C", "Quantity": 340, "Name": "Citigroup (Bank)"},
     {"Ticker": "BPAQF", "Quantity": 2000, "Name": "British Petroleum (Öl/Gas)"},
-    {"Ticker": "POAHF", "Quantity": 150, "Name": "Porsche (Auto)"},
+    {"Ticker": "POAHF", "Quantity": 0, "Name": "Porsche (Auto)"},
     {"Ticker": "EXV1.DE", "Quantity": 284, "Name": "Bank Index"},
     {"Ticker": "1COV.DE", "Quantity": 100, "Name": "Covestro (Chemie)"},
-    {"Ticker": "SPY", "Quantity": 10, "Name": "USA Index"},
+    {"Ticker": "SPY", "Quantity": 14, "Name": "USA Index"},
     {"Ticker": "HYMTF", "Quantity": 100, "Name": "Hyundai (Auto)"},
     {"Ticker": "SHEL", "Quantity": 75, "Name": "Shell (Öl/Gas)"},
-    {"Ticker": "DAX", "Quantity": 6, "Name": "Deutschaland Index"},
+    {"Ticker": "DAX", "Quantity": 6, "Name": "Deutschland Index"},
     {"Ticker": "PLTR", "Quantity": 100, "Name": "Palantir (Rüstung Software)"},
     {"Ticker": "UQ2B.DU", "Quantity": 5, "Name": "Europa Index"},
     {"Ticker": "DB", "Quantity": 1, "Name": "Deutsche Bank"},
     {"Ticker": "GS", "Quantity": 9, "Name": "Goldman Sachs (Bank)"},
     {"Ticker": "MBG.DE", "Quantity": 50, "Name": "Mercedes (Auto)"},
+    {"Ticker": "UAL", "Quantity": 60, "Name": "United (Airline)"},
+    {"Ticker": "LUV", "Quantity": 100, "Name": "Southwest (Airline)"},
+
 ]
 
-initial_cash = 17000
+initial_cash = 22000
 data_file_path = "parents_data.json"
 local_tz = pytz.timezone("Europe/Berlin")
 
