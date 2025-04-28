@@ -113,7 +113,7 @@ def fetch_daily_prices(tickers):
     return daily_prices
 
 def main():
-    st.title("Anni's Aktien")
+    st.title("Anni's Aktien!")
     ownership = load_ownership_data()
 
     # Fetch prices
