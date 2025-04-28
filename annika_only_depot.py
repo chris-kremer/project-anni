@@ -158,7 +158,7 @@ def main():
         st.metric(
             label="Aktueller Wert",
             value=f"€{current_value:,.2f}",
-            delta=f"{((current_value / 750) - 1) * 100:.2f}%",
+            delta=f"{((current_value / 800) - 1) * 100:.2f}%",
             delta_color="normal"
         )
     
