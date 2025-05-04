@@ -57,16 +57,25 @@ def load_ownership_data():
 
 def fetch_historical_prices(tickers):
     historical_prices = {}
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            data = yf.download(
+                tickers,
+                period="1y",
+                interval="1wk",
+                progress=False,
+                group_by="ticker",
+                threads=True
+            )
+    except Exception:
+        return {t: None for t in tickers}
+
     for ticker in tickers:
         try:
-            stock = yf.Ticker(ticker)
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                data = stock.history(period="1y", interval="1wk")
-            if not data.empty:
-                historical_prices[ticker] = data["Close"].ffill()
-            else:
-                historical_prices[ticker] = None
-        except Exception as e:
+            df = data[ticker] if isinstance(data, dict) or (ticker in data) else data
+            close = df["Close"] if "Close" in df else None
+            historical_prices[ticker] = close.ffill() if close is not None and not close.empty else None
+        except Exception:
             historical_prices[ticker] = None
     return historical_prices
 
@@ -107,17 +116,28 @@ def calculate_weekly_share_value(portfolio, historical_prices, ownership, initia
 
 def fetch_daily_prices(tickers):
     daily_prices = {}
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            data = yf.download(
+                tickers,
+                period="7d",
+                interval="1d",
+                progress=False,
+                group_by="ticker",
+                threads=True
+            )
+    except Exception:
+        return {t: None for t in tickers}
+
     for ticker in tickers:
         try:
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                data = yf.download(ticker, period="7d", interval="1d", progress=False)
-            if not data.empty:
-                # Fix timezone handling: Localize to UTC first, then convert to local
-                data.index = data.index.tz_localize('UTC').tz_convert(local_tz)
-                daily_prices[ticker] = data
-            else:
+            df = data[ticker] if isinstance(data, dict) or (ticker in data) else data
+            if df.empty:
                 daily_prices[ticker] = None
-        except Exception as e:
+            else:
+                df.index = df.index.tz_localize('UTC').tz_convert(local_tz)
+                daily_prices[ticker] = df
+        except Exception:
             daily_prices[ticker] = None
     return daily_prices
 
