@@ -7,6 +7,13 @@ import os
 import json
 import io
 import contextlib
+import warnings
+import logging
+
+# silence noisy libraries
+warnings.filterwarnings("ignore")
+for lib in ("yfinance", "urllib3", "requests"):
+    logging.getLogger(lib).setLevel(logging.CRITICAL)
 
 # Initial portfolio and ownership
 portfolio_assets = [
@@ -53,14 +60,13 @@ def fetch_historical_prices(tickers):
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
-            with contextlib.redirect_stdout(io.StringIO()):
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                 data = stock.history(period="1y", interval="1wk")
             if not data.empty:
                 historical_prices[ticker] = data["Close"].ffill()
             else:
                 historical_prices[ticker] = None
         except Exception as e:
-            print(f"Error fetching historical data for {ticker}: {e}")
             historical_prices[ticker] = None
     return historical_prices
 
@@ -103,7 +109,7 @@ def fetch_daily_prices(tickers):
     daily_prices = {}
     for ticker in tickers:
         try:
-            with contextlib.redirect_stdout(io.StringIO()):
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                 data = yf.download(ticker, period="7d", interval="1d", progress=False)
             if not data.empty:
                 # Fix timezone handling: Localize to UTC first, then convert to local
@@ -112,7 +118,6 @@ def fetch_daily_prices(tickers):
             else:
                 daily_prices[ticker] = None
         except Exception as e:
-            print(f"Error fetching daily data for {ticker}: {e}")
             daily_prices[ticker] = None
     return daily_prices
 
