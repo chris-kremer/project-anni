@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 import pytz
 import os
 import json
+import io
+import contextlib
 
 # Initial portfolio and ownership
 portfolio_assets = [
@@ -51,7 +53,8 @@ def fetch_historical_prices(tickers):
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
-            data = stock.history(period="1y", interval="1wk")  # Changed interval to 1 week
+            with contextlib.redirect_stdout(io.StringIO()):
+                data = stock.history(period="1y", interval="1wk")
             if not data.empty:
                 historical_prices[ticker] = data["Close"].ffill()
             else:
@@ -100,7 +103,8 @@ def fetch_daily_prices(tickers):
     daily_prices = {}
     for ticker in tickers:
         try:
-            data = yf.download(ticker, period="5d", interval="1d", progress=False)
+            with contextlib.redirect_stdout(io.StringIO()):
+                data = yf.download(ticker, period="7d", interval="1d", progress=False)
             if not data.empty:
                 # Fix timezone handling: Localize to UTC first, then convert to local
                 data.index = data.index.tz_localize('UTC').tz_convert(local_tz)
