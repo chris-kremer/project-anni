@@ -212,7 +212,11 @@ def main():
     )
 
     if not weekly_share_value.empty:
-        weekly_share_value["Date"] = weekly_share_value["Date"].dt.tz_convert(local_tz)
+        # Ensure timestamps are timezone‑aware (assumed UTC) before conversion
+        weekly_share_value["Date"] = (
+            pd.to_datetime(weekly_share_value["Date"], utc=True)
+              .dt.tz_convert(local_tz)
+        )
         current_ts = pd.Timestamp.now(tz=local_tz)
         last_date = weekly_share_value["Date"].iloc[-1]
         
