@@ -28,7 +28,7 @@ portfolio_assets = [
     {"Ticker": "SPY", "Quantity": 14, "Name": "USA Index"},
     {"Ticker": "HYMTF", "Quantity": 100, "Name": "Hyundai (Auto)"},
     {"Ticker": "SHEL", "Quantity": 75, "Name": "Shell (Öl/Gas)"},
-    {"Ticker": "DAX", "Quantity": 6, "Name": "Deutschland Index"},
+    {"Ticker": "DAX", "Quantity": 0.06, "Name": "Deutschland Index"},
     {"Ticker": "PLTR", "Quantity": 100, "Name": "Palantir (Rüstung Software)"},
     {"Ticker": "UQ2B.DU", "Quantity": 5, "Name": "Europa Index"},
     {"Ticker": "DB", "Quantity": 1, "Name": "Deutsche Bank"},
