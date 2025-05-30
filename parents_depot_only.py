@@ -19,7 +19,7 @@ portfolio_assets = [
     {"Ticker": "SPY", "Quantity": 10, "Name": "USA Index"},
     {"Ticker": "HYMTF", "Quantity": 100, "Name": "Hyundai (Auto)"},
     {"Ticker": "SHEL", "Quantity": 75, "Name": "Shell (Öl/Gas)"},
-    {"Ticker": "DAX", "Quantity": 6, "Name": "Deutschaland Index"}, # Note: DAX is ^GDAXI on yfinance
+    {"Ticker": "DAX", "Quantity": 0, "Name": "Deutschaland Index"}, # Note: DAX is ^GDAXI on yfinance
     {"Ticker": "PLTR", "Quantity": 100, "Name": "Palantir (Rüstung Software)"},
     {"Ticker": "UQ2B.DU", "Quantity": 5, "Name": "Europa Index"},
     {"Ticker": "DB", "Quantity": 1, "Name": "Deutsche Bank"}, # Note: Might be DBK.DE for Xetra
