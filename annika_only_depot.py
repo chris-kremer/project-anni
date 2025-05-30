@@ -21,7 +21,7 @@ portfolio_assets = [
     {"Ticker": "WFC", "Quantity": 400, "Name": "Wells Fargo (Bank)"},
     {"Ticker": "HLBZF", "Quantity": 185, "Name": "Heidelberg Materials"},
     {"Ticker": "C", "Quantity": 340, "Name": "Citigroup (Bank)"},
-    {"Ticker": "BPAQF", "Quantity": 2000, "Name": "British Petroleum (Öl/Gas)"},
+    {"Ticker": "BPAQF", "Quantity": 0, "Name": "British Petroleum (Öl/Gas)"},
     {"Ticker": "POAHF", "Quantity": 0, "Name": "Porsche (Auto)"},
     {"Ticker": "EXV1.DE", "Quantity": 284, "Name": "Bank Index"},
     {"Ticker": "1COV.DE", "Quantity": 100, "Name": "Covestro (Chemie)"},
