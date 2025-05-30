@@ -150,6 +150,8 @@ def get_scalar_price(row_series, column_name):
             return float(scalar_price)
     return None
 
+# Previous code ...
+
 def main():
     st.set_page_config(layout="wide")
     st.title("📈 Depot Anteil")
@@ -157,16 +159,15 @@ def main():
 
     tickers = [asset["Ticker"] for asset in portfolio_assets]
     
-    # --- Caching data fetching ---
-    @st.cache_data(ttl=1800) # Cache for 30 minutes
+    @st.cache_data(ttl=1800) 
     def get_historical_prices_cached(tickers_list):
         return fetch_historical_prices(tickers_list)
 
-    @st.cache_data(ttl=300) # Cache for 5 minutes
+    @st.cache_data(ttl=300) 
     def get_daily_prices_cached(tickers_list):
         return fetch_daily_prices(tickers_list)
 
-    historical_prices = get_historical_prices_cached(tuple(tickers)) # Use tuple for hashability
+    historical_prices = get_historical_prices_cached(tuple(tickers)) 
     daily_prices = get_daily_prices_cached(tuple(tickers))
 
     current_datetime_local = datetime.now(local_tz)
@@ -178,12 +179,8 @@ def main():
     for ticker in tickers:
         data = daily_prices.get(ticker)
         if data is not None and not data.empty:
-            # Current price (latest close)
             last_row_data = data.iloc[-1]
             current_price_dict[ticker] = get_scalar_price(last_row_data, "Close")
-
-            # Yesterday's open price
-            # Ensure data is sorted by date, which yf.download usually does
             data_sorted = data.sort_index()
             before_today_df = data_sorted[data_sorted.index.date < current_date_local]
             
@@ -191,26 +188,18 @@ def main():
                 last_trading_day_before_today_row = before_today_df.iloc[-1]
                 yesterday_open_dict[ticker] = get_scalar_price(last_trading_day_before_today_row, "Open")
             else:
-                # Fallback if no data strictly before today (e.g. market holiday, or it's Monday morning)
-                # Try to get the open price of the last available day if it's not today's open
-                if data.iloc[-1].name.date() < current_date_local : # if the last data point is not today
-                     yesterday_open_dict[ticker] = get_scalar_price(data.iloc[-1], "Open") # then its open could be considered
-                else: # if last data point is today, try second to last if available for "yesterday"
-                    if len(data) > 1:
-                         # Check if the second to last day's date is actually before current date
-                         if data.iloc[-2].name.date() < current_date_local:
-                            yesterday_open_dict[ticker] = get_scalar_price(data.iloc[-2], "Open")
-                         else: # Second to last day is also today (e.g. intra-day data not filtered out), so no valid yesterday
-                            yesterday_open_dict[ticker] = None
-                    else: # Not enough data
-                        yesterday_open_dict[ticker] = None
+                if not data.empty and data.iloc[-1].name.date() < current_date_local :
+                     yesterday_open_dict[ticker] = get_scalar_price(data.iloc[-1], "Open")
+                elif len(data) > 1 and data.iloc[-2].name.date() < current_date_local:
+                    yesterday_open_dict[ticker] = get_scalar_price(data.iloc[-2], "Open")
+                else:
+                    yesterday_open_dict[ticker] = None
         else:
             current_price_dict[ticker] = None
             yesterday_open_dict[ticker] = None
 
     current_value = calculate_value(portfolio_assets, current_price_dict, initial_cash, ownership)
     
-    # Calculate total gross portfolio value (before ownership percentage)
     total_gross_portfolio_value = initial_cash
     for asset in portfolio_assets:
         price = current_price_dict.get(asset["Ticker"])
@@ -220,8 +209,7 @@ def main():
     col1, col2 = st.columns(2)
     with col1:
         delta_vs_130k = 0
-        if current_value is not None and current_value > 0 : # Avoid division by zero if current_value is 0 or None
-            # Assuming 130000 is a target or reference value
+        if current_value is not None and current_value > 0 :
             delta_vs_130k = ((current_value / 130000) - 1) * 100 if 130000 != 0 else 0
         st.metric(
             label="Aktueller Wert (Anteil)",
@@ -232,7 +220,8 @@ def main():
     
     with col2:
         yesterday_value = None
-        if all(p is not None for p in yesterday_open_dict.values()): # Ensure all yesterday prices are available
+        # Check if yesterday_open_dict is not empty and all its values are not None
+        if yesterday_open_dict and all(p is not None for p in yesterday_open_dict.values()):
              yesterday_value = calculate_value(portfolio_assets, yesterday_open_dict, initial_cash, ownership)
         
         if current_value is not None and yesterday_value is not None and yesterday_value != 0:
@@ -245,7 +234,7 @@ def main():
                 delta_color="normal" if delta_percent == 0 else ("inverse" if delta_percent < 0 else "normal")
             )
         else:
-            st.metric("Veränderung seit Gestern (Open)", "N/A", help="Möglicherweise fehlen gestrige Eröffnungskurse.")
+            st.metric("Veränderung seit Gestern (Open)", "N/A", help="Möglicherweise fehlen gestrige Eröffnungskurse oder aktuelle Werte.")
 
     st.subheader("Wertentwicklung (Anteil) über die letzten 2 Jahre:")
     monthly_share_value_df = calculate_monthly_share_value(
@@ -253,37 +242,69 @@ def main():
     )
 
     if not monthly_share_value_df.empty:
-        # Ensure Date column is datetime and localized correctly for charting
-        monthly_share_value_df["Date"] = pd.to_datetime(monthly_share_value_df["Date"])
-        if monthly_share_value_df["Date"].dt.tz is None:
-            monthly_share_value_df["Date"] = monthly_share_value_df["Date"].dt.tz_localize('UTC') # Assuming fetched dates are UTC
-        monthly_share_value_df["Date"] = monthly_share_value_df["Date"].dt.tz_convert(local_tz)
-        
-        current_ts_for_chart = pd.Timestamp.now(tz=local_tz)
-        last_historical_date = monthly_share_value_df["Date"].iloc[-1]
-        
-        # Add current value to chart if it's for a newer date
-        if current_value is not None and (current_ts_for_chart.normalize() > last_historical_date.normalize() or not any(d.date() == current_ts_for_chart.date() for d in monthly_share_value_df["Date"])):
+        # MODIFICATION STARTS HERE
+        # Convert 'Date' column to datetime objects, coercing errors to NaT
+        monthly_share_value_df["Date"] = pd.to_datetime(monthly_share_value_df["Date"], errors='coerce')
 
-            # Check if the current time is past the typical market close for the last data point
-            # This is a heuristic to decide whether to append today's value.
-            # If the last historical point is already today, we might replace it or just show it.
+        # Handle NaT values: remove rows where 'Date' became NaT
+        rows_before_dropna = len(monthly_share_value_df)
+        monthly_share_value_df.dropna(subset=["Date"], inplace=True)
+        rows_after_dropna = len(monthly_share_value_df)
+
+        if rows_before_dropna > rows_after_dropna:
+            st.warning(f"{rows_before_dropna - rows_after_dropna} Einträge mit nicht-lesbaren Datumsangaben wurden aus den Verlaufsdaten entfernt.")
+
+        if monthly_share_value_df.empty:
+            st.error("Keine gültigen Verlaufsdaten nach der Datumskonvertierung vorhanden. Das Diagramm kann nicht angezeigt werden.")
+        else:
+            # Proceed with timezone localization only if DataFrame is not empty
+            # Ensure all dates are timezone-naive before localizing to UTC, then convert
+            # This handles cases where some dates might already be localized due to 'coerce' or other reasons
             
-            new_entry = pd.DataFrame([{
-                "Date": current_ts_for_chart,
-                "Share Value": current_value
-            }])
-            monthly_share_value_df = pd.concat(
-                [monthly_share_value_df, new_entry],
-                ignore_index=True
-            ).sort_values(by="Date") # Sort again after adding
+            # Convert to timezone-naive first if mixed, then localize and convert
+            # This step might be overly cautious if pd.to_datetime with coerce results in naive or consistent tz for Timestamps
+            is_localized = False
+            try:
+                if monthly_share_value_df["Date"].dt.tz is not None:
+                    is_localized = True
+            except AttributeError: # Happens if column is not datetime after all (e.g. all NaT and dropped)
+                 pass
 
-        st.line_chart(
-            monthly_share_value_df.set_index("Date")["Share Value"],
-            use_container_width=True
-        )
+
+            if is_localized: # If already localized (e.g. to UTC by some chance)
+                 monthly_share_value_df["Date"] = monthly_share_value_df["Date"].dt.tz_convert(local_tz)
+            else: # If naive (most common case after to_datetime or if original was naive)
+                 monthly_share_value_df["Date"] = monthly_share_value_df["Date"].dt.tz_localize('UTC', ambiguous='infer').dt.tz_convert(local_tz)
+            
+            # MODIFICATION ENDS HERE
+            
+            current_ts_for_chart = pd.Timestamp.now(tz=local_tz)
+            # Ensure DataFrame is not empty before trying to access .iloc[-1]
+            if not monthly_share_value_df.empty:
+                last_historical_date = monthly_share_value_df["Date"].iloc[-1]
+            
+                if current_value is not None and (current_ts_for_chart.normalize() > last_historical_date.normalize() or not any(d.date() == current_ts_for_chart.date() for d in monthly_share_value_df["Date"])):
+                    new_entry = pd.DataFrame([{
+                        "Date": current_ts_for_chart,
+                        "Share Value": current_value
+                    }])
+                    monthly_share_value_df = pd.concat(
+                        [monthly_share_value_df, new_entry],
+                        ignore_index=True
+                    ).sort_values(by="Date").reset_index(drop=True)
+
+            if not monthly_share_value_df.empty:
+                st.line_chart(
+                    monthly_share_value_df.set_index("Date")["Share Value"],
+                    use_container_width=True
+                )
+            else:
+                st.write("Keine darstellbaren Verlaufsdaten vorhanden.") # Message if df becomes empty after processing
     else:
         st.write("Keine historischen Daten über dem Schwellenwert von €50.000 für den Chart verfügbar oder Fehler beim Laden.")
+    
+    # ... rest of your main function (debug_data, performance highlights, detailed positions table)
+    # This part should be unaffected but ensure it handles an empty current_price_dict or yesterday_open_dict gracefully if all data fetching fails.
 
     debug_data = []
     max_percentage_gain = {"name": None, "value": -float('inf')}
@@ -308,10 +329,10 @@ def main():
             price_str = f"€{current_price:.2f}"
             value = current_price * quantity
             value_str = f"€{value:,.2f}"
-            if total_gross_portfolio_value > 0: # Avoid division by zero
+            if total_gross_portfolio_value != 0: # Avoid division by zero
                 percent_anteil_str = f"{(value / total_gross_portfolio_value * 100):.2f}%"
 
-            if yesterday_open_price is not None and pd.notna(yesterday_open_price) and yesterday_open_price > 0:
+            if yesterday_open_price is not None and pd.notna(yesterday_open_price) and yesterday_open_price > 0: # Ensure yesterday_open_price is positive
                 delta_price_val = current_price - yesterday_open_price
                 delta_percent_val = (delta_price_val / yesterday_open_price) * 100
                 total_gain_val = delta_price_val * quantity
@@ -325,7 +346,7 @@ def main():
                 if total_gain_val > max_total_gain["value"]:
                     max_total_gain = {"name": name, "value": total_gain_val}
         else:
-            price_str = "Fehlend" # if current_price is None or NaN
+            price_str = "Fehlend" 
             value_str = "Fehlend"
             
         debug_data.append({
@@ -337,20 +358,23 @@ def main():
             "% Anteil": percent_anteil_str,
             "Tagesänderung (€)": delta_price_str,
             "Tagesänderung (%)": delta_percent_str,
-            "Gesamtgewinn Heute": total_gain_str # Renamed for clarity
+            "Gesamtgewinn Heute": total_gain_str 
         })
 
     st.subheader("🏅 Tagesperformance Highlights")
-    if max_percentage_gain["name"] and max_total_gain["name"] and max_percentage_gain["value"] != -float('inf') and max_total_gain["value"] != -float('inf'):
+    valid_percentage_gain = max_percentage_gain["name"] is not None and max_percentage_gain["value"] != -float('inf')
+    valid_total_gain = max_total_gain["name"] is not None and max_total_gain["value"] != -float('inf')
+
+    if valid_percentage_gain and valid_total_gain:
         st.success(
             f"🏆 **Beste Performance Heute:** {max_percentage_gain['name']} "
             f"({max_percentage_gain['value']:+.2f}%)\n\n"
             f"💰 **Höchster Gewinn Heute:** {max_total_gain['name']} "
             f"(€{max_total_gain['value']:+,.2f})"
         )
-    elif max_percentage_gain["name"]  and max_percentage_gain["value"] != -float('inf'):
+    elif valid_percentage_gain:
          st.info(f"🏆 **Beste Performance Heute:** {max_percentage_gain['name']} ({max_percentage_gain['value']:+.2f}%)")
-    elif max_total_gain["name"] and max_total_gain["value"] != -float('inf'):
+    elif valid_total_gain:
          st.info(f"💰 **Höchster Gewinn Heute:** {max_total_gain['name']} (€{max_total_gain['value']:+,.2f})")
     else:
         st.warning("⚠️ Keine vollständigen Tagesdaten für Performance Highlights verfügbar.")
@@ -362,14 +386,13 @@ def main():
         use_container_width=True,
         column_config={
             "Menge": st.column_config.NumberColumn(format="%d"),
-            "Preis": st.column_config.TextColumn(),
-            "Wert": st.column_config.TextColumn(),
-            "% Anteil": st.column_config.TextColumn(),
-            "Tagesänderung (€)": st.column_config.TextColumn(),
-            "Tagesänderung (%)": st.column_config.TextColumn(),
-            "Gesamtgewinn Heute": st.column_config.TextColumn(),
+            # Add other column configs if needed
         }
     )
+
+# Make sure all functions are defined before main() if not already.
+# For example, the helper 'get_scalar_price' and others used in main.
+# Ensure the portfolio_assets, initial_cash, etc. are defined globally or passed appropriately.
 
 if __name__ == "__main__":
     main()
