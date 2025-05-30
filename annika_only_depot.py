@@ -55,193 +55,270 @@ def load_ownership_data():
     else:
         return {"Percentage": 0.31}
 
+
 def fetch_historical_prices(tickers):
     historical_prices = {}
-    try:
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            data = yf.download(
-                tickers,
-                period="1y",
-                interval="1wk",
-                progress=False,
-                group_by="ticker",
-                threads=True
-            )
-    except Exception:
-        return {t: None for t in tickers}
-
     for ticker in tickers:
+        # yfinance uses ^GDAXI for DAX index
+        actual_ticker = "^GDAXI" if ticker == "DAX" else ticker
         try:
-            df = data[ticker] if isinstance(data, dict) or (ticker in data) else data
-            close = df["Close"] if "Close" in df else None
-            historical_prices[ticker] = close.ffill() if close is not None and not close.empty else None
-        except Exception:
+            stock = yf.Ticker(actual_ticker)
+            data = stock.history(period="2y", interval="1mo")
+            if not data.empty:
+                historical_prices[ticker] = data["Close"].ffill() # Keep original ticker key
+            else:
+                st.warning(f"No historical data for {ticker} ({actual_ticker}).")
+                historical_prices[ticker] = None
+        except Exception as e:
+            print(f"Error fetching historical data for {ticker} ({actual_ticker}): {e}")
             historical_prices[ticker] = None
     return historical_prices
 
-def calculate_value(portfolio, price_dict, initial_cash, ownership):
-    total_value = initial_cash
+
+def calculate_value(portfolio, price_dict, initial_cash_val, ownership_data):
+    total_value = initial_cash_val
     for asset in portfolio:
         ticker = asset["Ticker"]
         quantity = asset["Quantity"]
         price = price_dict.get(ticker)
         if price is not None and pd.notna(price) and price > 0:
             total_value += price * quantity
-    return total_value * (ownership["Percentage"] / 100)
+    return total_value * (ownership_data["Percentage"] / 100)
 
-def calculate_weekly_share_value(portfolio, historical_prices, ownership, initial_cash):
+def calculate_monthly_share_value(portfolio, historical_prices, ownership_data, initial_cash_val):
     all_dates = set()
     for prices in historical_prices.values():
         if prices is not None:
             all_dates.update(prices.index)
-    all_dates = sorted(all_dates)
+    
+    if not all_dates: # Handle case where no historical prices were fetched
+        return pd.DataFrame(columns=["Date", "Share Value"])
+        
+    all_dates = sorted(list(all_dates))
 
-    weekly_values = []
+
+    monthly_values = []
     for date in all_dates:
-        total_value = initial_cash
+        total_value_on_date = initial_cash_val
         for asset in portfolio:
             ticker = asset["Ticker"]
             quantity = asset["Quantity"]
-            prices = historical_prices.get(ticker)
-            if prices is not None and date in prices:
-                price = prices.loc[date]
+            prices_for_asset = historical_prices.get(ticker)
+            if prices_for_asset is not None and date in prices_for_asset.index:
+                price = prices_for_asset.loc[date]
                 if pd.isna(price) or price <= 0:
-                    continue
-                total_value += price * quantity
-        share_value = total_value * (ownership["Percentage"] / 100)
-        if share_value >= 500:  # Keep threshold for valid values
-            weekly_values.append({"Date": date, "Share Value": share_value})
+                    # Try to find the last known price if current is NaN (ffill should handle this in fetch)
+                    # This path might be redundant if ffill worked perfectly, but good for safety.
+                    valid_prices_before_date = prices_for_asset.loc[prices_for_asset.index <= date].ffill()
+                    if not valid_prices_before_date.empty:
+                        price = valid_prices_before_date.iloc[-1]
+                    else:
+                        continue # No valid price found up to this date
+                
+                if pd.notna(price) and price > 0:
+                     total_value_on_date += price * quantity
 
-    return pd.DataFrame(weekly_values)
+        share_value = total_value_on_date * (ownership_data["Percentage"] / 100)
+        if share_value >= 50000: # Threshold condition
+            monthly_values.append({"Date": date, "Share Value": share_value})
+
+    return pd.DataFrame(monthly_values)
 
 def fetch_daily_prices(tickers):
     daily_prices = {}
-    try:
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            data = yf.download(
-                tickers,
-                period="7d",
-                interval="1d",
-                progress=False,
-                group_by="ticker",
-                threads=True
-            )
-    except Exception:
-        return {t: None for t in tickers}
-
     for ticker in tickers:
+        # yfinance uses ^GDAXI for DAX index
+        actual_ticker = "^GDAXI" if ticker == "DAX" else ticker
         try:
-            df = data[ticker] if isinstance(data, dict) or (ticker in data) else data
-            if df.empty:
-                daily_prices[ticker] = None
+            # Fetch slightly more data to ensure previous day is available
+            data = yf.download(actual_ticker, period="10d", interval="1d", progress=False)
+            if not data.empty:
+                if data.index.tz is None:
+                    data.index = data.index.tz_localize('UTC')
+                data.index = data.index.tz_convert(local_tz)
+                daily_prices[ticker] = data # Keep original ticker key
             else:
-                df.index = df.index.tz_localize('UTC').tz_convert(local_tz)
-                daily_prices[ticker] = df
-        except Exception:
+                st.warning(f"No daily data for {ticker} ({actual_ticker}).")
+                daily_prices[ticker] = None
+        except Exception as e:
+            print(f"Error fetching daily data for {ticker} ({actual_ticker}): {e}")
             daily_prices[ticker] = None
     return daily_prices
 
+def get_scalar_price(row_series, column_name):
+    """Safely extracts a scalar price from a row Series, handling potential duplicate columns."""
+    if column_name in row_series.index:
+        value_or_series = row_series[column_name]
+        if isinstance(value_or_series, pd.Series):
+            if not value_or_series.empty:
+                # Multiple values found for the column name, take the first one.
+                scalar_price = value_or_series.iloc[0]
+            else:
+                scalar_price = None
+        else:
+            # Single value found, it's already a scalar.
+            scalar_price = value_or_series
+        
+        if pd.notna(scalar_price):
+            return float(scalar_price)
+    return None
+
+# Previous code ...
+
 def main():
-    st.title("Anni's Aktien")
+    st.set_page_config(layout="wide")
+    st.title("📈 Depot Anteil")
     ownership = load_ownership_data()
 
-    # Fetch prices
     tickers = [asset["Ticker"] for asset in portfolio_assets]
-    historical_prices = fetch_historical_prices(tickers)
-    daily_prices = fetch_daily_prices(tickers)
-
-    # Calculate values
-    current_date = datetime.now(local_tz).date()
     
-    # Yesterday's open values
+    @st.cache_data(ttl=1800) 
+    def get_historical_prices_cached(tickers_list):
+        return fetch_historical_prices(tickers_list)
+
+    @st.cache_data(ttl=300) 
+    def get_daily_prices_cached(tickers_list):
+        return fetch_daily_prices(tickers_list)
+
+    historical_prices = get_historical_prices_cached(tuple(tickers)) 
+    daily_prices = get_daily_prices_cached(tuple(tickers))
+
+    current_datetime_local = datetime.now(local_tz)
+    current_date_local = current_datetime_local.date()
+    
     yesterday_open_dict = {}
-    for ticker in tickers:
-        data = daily_prices.get(ticker)
-        if data is not None and not data.empty:
-            before_today = data[data.index.date < current_date]
-            if not before_today.empty:
-                try:
-                    yesterday_open_dict[ticker] = before_today.iloc[-1]["Open"].item()
-                except (KeyError, AttributeError):
-                    yesterday_open_dict[ticker] = None
-
-    # Current price dictionary
     current_price_dict = {}
+
     for ticker in tickers:
         data = daily_prices.get(ticker)
         if data is not None and not data.empty:
-            try:
-                current_price_dict[ticker] = data.iloc[-1]["Close"].item()
-            except (KeyError, AttributeError):
-                current_price_dict[ticker] = None
+            last_row_data = data.iloc[-1]
+            current_price_dict[ticker] = get_scalar_price(last_row_data, "Close")
+            data_sorted = data.sort_index()
+            before_today_df = data_sorted[data_sorted.index.date < current_date_local]
+            
+            if not before_today_df.empty:
+                last_trading_day_before_today_row = before_today_df.iloc[-1]
+                yesterday_open_dict[ticker] = get_scalar_price(last_trading_day_before_today_row, "Open")
+            else:
+                if not data.empty and data.iloc[-1].name.date() < current_date_local :
+                     yesterday_open_dict[ticker] = get_scalar_price(data.iloc[-1], "Open")
+                elif len(data) > 1 and data.iloc[-2].name.date() < current_date_local:
+                    yesterday_open_dict[ticker] = get_scalar_price(data.iloc[-2], "Open")
+                else:
+                    yesterday_open_dict[ticker] = None
+        else:
+            current_price_dict[ticker] = None
+            yesterday_open_dict[ticker] = None
 
-    # Calculate current value
     current_value = calculate_value(portfolio_assets, current_price_dict, initial_cash, ownership)
-    total_portfolio_value = sum(
-        price * asset["Quantity"] for asset, price in zip(portfolio_assets, current_price_dict.values())
-    ) + initial_cash
+    
+    total_gross_portfolio_value = initial_cash
+    for asset in portfolio_assets:
+        price = current_price_dict.get(asset["Ticker"])
+        if price is not None and pd.notna(price) and price > 0:
+            total_gross_portfolio_value += price * asset["Quantity"]
 
-    # Display metrics
     col1, col2 = st.columns(2)
     with col1:
+        delta_vs_130k = 0
+        if current_value is not None and current_value > 0 :
+            delta_vs_130k = ((current_value / 130000) - 1) * 100 if 130000 != 0 else 0
         st.metric(
-            label="Aktueller Wert",
-            value=f"€{current_value:,.2f}",
-            delta=f"{((current_value / 800) - 1) * 100:.2f}%",
+            label="Aktueller Wert (Anteil)",
+            value=f"€{current_value:,.2f}" if current_value is not None else "N/A",
+            delta=f"{delta_vs_130k:.2f}% vs €130k" if current_value is not None else "",
             delta_color="normal"
         )
     
     with col2:
-        if yesterday_open_dict:
-            yesterday_value = calculate_value(portfolio_assets, yesterday_open_dict, initial_cash, ownership)
-            delta_value = current_value - yesterday_value
-            delta_percent = (delta_value / yesterday_value) * 100 if yesterday_value != 0 else 0
+        yesterday_value = None
+        # Check if yesterday_open_dict is not empty and all its values are not None
+        if yesterday_open_dict and all(p is not None for p in yesterday_open_dict.values()):
+             yesterday_value = calculate_value(portfolio_assets, yesterday_open_dict, initial_cash, ownership)
+        
+        if current_value is not None and yesterday_value is not None and yesterday_value != 0:
+            delta_value_abs = current_value - yesterday_value
+            delta_percent = (delta_value_abs / yesterday_value) * 100
             st.metric(
-                label="Seit gestern morgen",
-                value=f"€{delta_value:+,.2f}",
+                label="Veränderung seit Gestern (Open)",
+                value=f"€{delta_value_abs:+,.2f}",
                 delta=f"{delta_percent:+.2f}%",
-                delta_color="normal"
+                delta_color="normal" if delta_percent == 0 else ("inverse" if delta_percent < 0 else "normal")
             )
         else:
-            st.metric("Seit gestern Open", "N/A")
-    
-    # Chart: 1 Jahr Performance des Portfolios (Standardisiert)
-    st.subheader("1 Jahr Performance des Portfolios (Standardisiert)")
-    weekly_share_value = calculate_weekly_share_value(
+            st.metric("Veränderung seit Gestern (Open)", "N/A", help="Möglicherweise fehlen gestrige Eröffnungskurse oder aktuelle Werte.")
+
+    st.subheader("Wertentwicklung (Anteil) über die letzten 2 Jahre:")
+    monthly_share_value_df = calculate_monthly_share_value(
         portfolio_assets, historical_prices, ownership, initial_cash
     )
 
-    if not weekly_share_value.empty:
-        # Ensure timestamps are timezone‑aware (assumed UTC) before conversion
-        weekly_share_value["Date"] = (
-            pd.to_datetime(weekly_share_value["Date"], utc=True)
-              .dt.tz_convert(local_tz)
-        )
-        current_ts = pd.Timestamp.now(tz=local_tz)
-        last_date = weekly_share_value["Date"].iloc[-1]
-        
-        if current_ts > last_date:
-            new_entry = pd.DataFrame([{
-                "Date": current_ts,
-                "Share Value": current_value
-            }])
-            weekly_share_value = pd.concat(
-                [weekly_share_value, new_entry],
-                ignore_index=True
-            )
-        
-        # Standardize the portfolio values: set the first value to 100 and scale the rest accordingly
-        baseline = weekly_share_value["Share Value"].iloc[0]
-        weekly_share_value["Standardized"] = (weekly_share_value["Share Value"] / baseline) * 100
+    if not monthly_share_value_df.empty:
+        # MODIFICATION STARTS HERE
+        # Convert 'Date' column to datetime objects, coercing errors to NaT
+        monthly_share_value_df["Date"] = pd.to_datetime(monthly_share_value_df["Date"], errors='coerce')
 
-        st.line_chart(
-            weekly_share_value.set_index("Date")["Standardized"],
-            use_container_width=True
-        )
+        # Handle NaT values: remove rows where 'Date' became NaT
+        rows_before_dropna = len(monthly_share_value_df)
+        monthly_share_value_df.dropna(subset=["Date"], inplace=True)
+        rows_after_dropna = len(monthly_share_value_df)
+
+        if rows_before_dropna > rows_after_dropna:
+            st.warning(f"{rows_before_dropna - rows_after_dropna} Einträge mit nicht-lesbaren Datumsangaben wurden aus den Verlaufsdaten entfernt.")
+
+        if monthly_share_value_df.empty:
+            st.error("Keine gültigen Verlaufsdaten nach der Datumskonvertierung vorhanden. Das Diagramm kann nicht angezeigt werden.")
+        else:
+            # Proceed with timezone localization only if DataFrame is not empty
+            # Ensure all dates are timezone-naive before localizing to UTC, then convert
+            # This handles cases where some dates might already be localized due to 'coerce' or other reasons
+            
+            # Convert to timezone-naive first if mixed, then localize and convert
+            # This step might be overly cautious if pd.to_datetime with coerce results in naive or consistent tz for Timestamps
+            is_localized = False
+            try:
+                if monthly_share_value_df["Date"].dt.tz is not None:
+                    is_localized = True
+            except AttributeError: # Happens if column is not datetime after all (e.g. all NaT and dropped)
+                 pass
+
+
+            if is_localized: # If already localized (e.g. to UTC by some chance)
+                 monthly_share_value_df["Date"] = monthly_share_value_df["Date"].dt.tz_convert(local_tz)
+            else: # If naive (most common case after to_datetime or if original was naive)
+                 monthly_share_value_df["Date"] = monthly_share_value_df["Date"].dt.tz_localize('UTC', ambiguous='infer').dt.tz_convert(local_tz)
+            
+            # MODIFICATION ENDS HERE
+            
+            current_ts_for_chart = pd.Timestamp.now(tz=local_tz)
+            # Ensure DataFrame is not empty before trying to access .iloc[-1]
+            if not monthly_share_value_df.empty:
+                last_historical_date = monthly_share_value_df["Date"].iloc[-1]
+            
+                if current_value is not None and (current_ts_for_chart.normalize() > last_historical_date.normalize() or not any(d.date() == current_ts_for_chart.date() for d in monthly_share_value_df["Date"])):
+                    new_entry = pd.DataFrame([{
+                        "Date": current_ts_for_chart,
+                        "Share Value": current_value
+                    }])
+                    monthly_share_value_df = pd.concat(
+                        [monthly_share_value_df, new_entry],
+                        ignore_index=True
+                    ).sort_values(by="Date").reset_index(drop=True)
+
+            if not monthly_share_value_df.empty:
+                st.line_chart(
+                    monthly_share_value_df.set_index("Date")["Share Value"],
+                    use_container_width=True
+                )
+            else:
+                st.write("Keine darstellbaren Verlaufsdaten vorhanden.") # Message if df becomes empty after processing
     else:
-        st.write("Keine Daten über dem Schwellenwert von €50.000 verfügbar.")
+        st.write("Keine historischen Daten über dem Schwellenwert von €50.000 für den Chart verfügbar oder Fehler beim Laden.")
+    
+    # ... rest of your main function (debug_data, performance highlights, detailed positions table)
+    # This part should be unaffected but ensure it handles an empty current_price_dict or yesterday_open_dict gracefully if all data fetching fails.
 
-    # Calculate performance data and prepare table
     debug_data = []
     max_percentage_gain = {"name": None, "value": -float('inf')}
     max_total_gain = {"name": None, "value": -float('inf')}
@@ -249,96 +326,86 @@ def main():
     for asset in portfolio_assets:
         ticker = asset["Ticker"]
         name = asset["Name"]
-        data = daily_prices.get(ticker)
         quantity = asset["Quantity"]
         
-        if data is not None and not data.empty:
-            try:
-                price = data.iloc[-1]["Close"].item()
-                value = price * quantity
-                yesterday_open = yesterday_open_dict.get(ticker)
-                
-                if yesterday_open and yesterday_open > 0 and price:
-                    delta_price = price - yesterday_open
-                    delta_percent = (delta_price / yesterday_open) * 100
-                    total_gain = delta_price * quantity * ownership["Percentage"] * 0.01
-                    
-                    # Update performance trackers
-                    if delta_percent > max_percentage_gain["value"]:
-                        max_percentage_gain = {"name": name, "value": delta_percent}
-                    if total_gain > max_total_gain["value"]:
-                        max_total_gain = {"name": name, "value": total_gain}
-                        
-                    delta_price_str = f"€{delta_price:+.2f}"
-                    delta_percent_str = f"{delta_percent:+.2f}%"
-                    total_gain_str = f"€{total_gain:+,.2f}"
-                else:
-                    delta_price_str = "N/A"
-                    delta_percent_str = "N/A"
-                    total_gain_str = "N/A"
+        current_price = current_price_dict.get(ticker)
+        yesterday_open_price = yesterday_open_dict.get(ticker)
+        
+        price_str = "N/A"
+        value_str = "N/A"
+        percent_anteil_str = "N/A"
+        delta_price_str = "N/A"
+        delta_percent_str = "N/A"
+        total_gain_str = "N/A"
 
-                debug_data.append({
-                    "Name": name,
-                    "Menge": quantity,
-                    "Preis": f"€{price:.2f}",
-                    "Wert": f"€{value:,.2f}",
-                    "% Anteil": f"{(value / total_portfolio_value * 100):.2f}%",
-                    "Tagesänderung (%)": delta_percent_str,
-                    "Gewinn für dich": total_gain_str
-                })
+        if current_price is not None and pd.notna(current_price):
+            price_str = f"€{current_price:.2f}"
+            value = current_price * quantity
+            value_str = f"€{value:,.2f}"
+            if total_gross_portfolio_value != 0: # Avoid division by zero
+                percent_anteil_str = f"{(value / total_gross_portfolio_value * 100):.2f}%"
+
+            if yesterday_open_price is not None and pd.notna(yesterday_open_price) and yesterday_open_price > 0: # Ensure yesterday_open_price is positive
+                delta_price_val = current_price - yesterday_open_price
+                delta_percent_val = (delta_price_val / yesterday_open_price) * 100
+                total_gain_val = delta_price_val * quantity
                 
-            except (KeyError, AttributeError):
-                debug_data.append({
-                    "Ticker": ticker,
-                    "Name": name,
-                    "Menge": quantity,
-                    "Preis": "Fehler",
-                    "Wert": "Fehler",
-                    "% Anteil": "N/A",
-                    "Tagesänderung (€)": "N/A",
-                    "Tagesänderung (%)": "N/A",
-                    "Gesamtgewinn": "N/A"
-                })
+                delta_price_str = f"€{delta_price_val:+.2f}"
+                delta_percent_str = f"{delta_percent_val:+.2f}%"
+                total_gain_str = f"€{total_gain_val:+,.2f}"
+
+                if delta_percent_val > max_percentage_gain["value"]:
+                    max_percentage_gain = {"name": name, "value": delta_percent_val}
+                if total_gain_val > max_total_gain["value"]:
+                    max_total_gain = {"name": name, "value": total_gain_val}
         else:
-            debug_data.append({
-                "Ticker": ticker,
-                "Name": name,
-                "Menge": quantity,
-                "Preis": "Fehlend",
-                "Wert": "Fehlend",
-                "% Anteil": "N/A",
-                "Tagesänderung (€)": "N/A",
-                "Tagesänderung (%)": "N/A",
-                "Gesamtgewinn": "N/A"
-            })
+            price_str = "Fehlend" 
+            value_str = "Fehlend"
+            
+        debug_data.append({
+            "Ticker": ticker,
+            "Name": name,
+            "Menge": quantity,
+            "Preis": price_str,
+            "Wert": value_str,
+            "% Anteil": percent_anteil_str,
+            "Tagesänderung (€)": delta_price_str,
+            "Tagesänderung (%)": delta_percent_str,
+            "Gesamtgewinn Heute": total_gain_str 
+        })
 
-    # Performance highlights above the table
-    st.subheader("Tagesperformance")
-    if max_percentage_gain["name"] and max_total_gain["name"]:
-        adjusted_best_total_gain = max_total_gain["value"] 
+    st.subheader("🏅 Tagesperformance Highlights")
+    valid_percentage_gain = max_percentage_gain["name"] is not None and max_percentage_gain["value"] != -float('inf')
+    valid_total_gain = max_total_gain["name"] is not None and max_total_gain["value"] != -float('inf')
+
+    if valid_percentage_gain and valid_total_gain:
         st.success(
             f"🏆 **Beste Performance Heute:** {max_percentage_gain['name']} "
-            f"({max_percentage_gain['value']:.2f}%)\n\n"
+            f"({max_percentage_gain['value']:+.2f}%)\n\n"
             f"💰 **Höchster Gewinn Heute:** {max_total_gain['name']} "
-            f"(€{adjusted_best_total_gain:+,.2f} für dich)"
+            f"(€{max_total_gain['value']:+,.2f})"
         )
-    elif max_percentage_gain["name"] or max_total_gain["name"]:
-        st.warning("⚠️ Teilweise Daten verfügbar:")
-        if max_percentage_gain["name"]:
-            st.write(f"- 🥇 {max_percentage_gain['name']} ({max_percentage_gain['value']:.2f}%)")
-        if max_total_gain["name"]:
-            adjusted_best_total_gain = max_total_gain["value"] * ownership["Percentage"]
-            st.write(f"- 🥇 {max_total_gain['name']} (€{adjusted_best_total_gain:+,.2f})")
+    elif valid_percentage_gain:
+         st.info(f"🏆 **Beste Performance Heute:** {max_percentage_gain['name']} ({max_percentage_gain['value']:+.2f}%)")
+    elif valid_total_gain:
+         st.info(f"💰 **Höchster Gewinn Heute:** {max_total_gain['name']} (€{max_total_gain['value']:+,.2f})")
     else:
-        st.warning("⚠️ Keine vollständigen Tagesdaten verfügbar")
+        st.warning("⚠️ Keine vollständigen Tagesdaten für Performance Highlights verfügbar.")
 
-    # Detailed positions table
     st.subheader("Detaillierte Positionen")
     st.dataframe(
         pd.DataFrame(debug_data),
         height=600,
-        use_container_width=True
+        use_container_width=True,
+        column_config={
+            "Menge": st.column_config.NumberColumn(format="%d"),
+            # Add other column configs if needed
+        }
     )
+
+# Make sure all functions are defined before main() if not already.
+# For example, the helper 'get_scalar_price' and others used in main.
+# Ensure the portfolio_assets, initial_cash, etc. are defined globally or passed appropriately.
 
 if __name__ == "__main__":
     main()
