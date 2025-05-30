@@ -119,7 +119,7 @@ def calculate_monthly_share_value(portfolio, historical_prices, ownership_data, 
                      total_value_on_date += price * quantity
 
         share_value = total_value_on_date * (ownership_data["Percentage"] / 100)
-        if share_value >= 50000: # Threshold condition
+        if share_value >= 500: # Threshold condition
             monthly_values.append({"Date": date, "Share Value": share_value})
 
     return pd.DataFrame(monthly_values)
