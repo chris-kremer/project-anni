@@ -48,7 +48,7 @@ def load_ownership_data():
         try:
             with open(data_file_path, "r") as file:
                 data = json.load(file)
-                return data.get("ownership", {"Percentage": 0.36262512})
+                return data.get("ownership", {"Percentage": 0.38462512})
         except json.JSONDecodeError:
             st.warning("Data file is corrupt. Using default values.")
             return {"Percentage": 0.31}
