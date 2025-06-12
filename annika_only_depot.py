@@ -10,6 +10,7 @@ import contextlib
 import warnings
 import logging
 
+from portfolio_utils import fetch_historical_prices, fetch_daily_prices, calculate_value, calculate_monthly_share_value, get_scalar_price
 # silence noisy libraries
 warnings.filterwarnings("ignore")
 for lib in ("yfinance", "urllib3", "requests"):
@@ -55,113 +56,6 @@ def load_ownership_data():
     else:
         return {"Percentage": 0.31}
 
-
-def fetch_historical_prices(tickers):
-    historical_prices = {}
-    for ticker in tickers:
-        # yfinance uses ^GDAXI for DAX index
-        actual_ticker = "^GDAXI" if ticker == "DAX" else ticker
-        try:
-            stock = yf.Ticker(actual_ticker)
-            data = stock.history(period="2y", interval="1mo")
-            if not data.empty:
-                historical_prices[ticker] = data["Close"].ffill() # Keep original ticker key
-            else:
-                st.warning(f"No historical data for {ticker} ({actual_ticker}).")
-                historical_prices[ticker] = None
-        except Exception as e:
-            print(f"Error fetching historical data for {ticker} ({actual_ticker}): {e}")
-            historical_prices[ticker] = None
-    return historical_prices
-
-
-def calculate_value(portfolio, price_dict, initial_cash_val, ownership_data):
-    total_value = initial_cash_val
-    for asset in portfolio:
-        ticker = asset["Ticker"]
-        quantity = asset["Quantity"]
-        price = price_dict.get(ticker)
-        if price is not None and pd.notna(price) and price > 0:
-            total_value += price * quantity
-    return total_value * (ownership_data["Percentage"] / 100)
-
-def calculate_monthly_share_value(portfolio, historical_prices, ownership_data, initial_cash_val):
-    all_dates = set()
-    for prices in historical_prices.values():
-        if prices is not None:
-            all_dates.update(prices.index)
-    
-    if not all_dates: # Handle case where no historical prices were fetched
-        return pd.DataFrame(columns=["Date", "Share Value"])
-        
-    all_dates = sorted(list(all_dates))
-
-
-    monthly_values = []
-    for date in all_dates:
-        total_value_on_date = initial_cash_val
-        for asset in portfolio:
-            ticker = asset["Ticker"]
-            quantity = asset["Quantity"]
-            prices_for_asset = historical_prices.get(ticker)
-            if prices_for_asset is not None and date in prices_for_asset.index:
-                price = prices_for_asset.loc[date]
-                if pd.isna(price) or price <= 0:
-                    # Try to find the last known price if current is NaN (ffill should handle this in fetch)
-                    # This path might be redundant if ffill worked perfectly, but good for safety.
-                    valid_prices_before_date = prices_for_asset.loc[prices_for_asset.index <= date].ffill()
-                    if not valid_prices_before_date.empty:
-                        price = valid_prices_before_date.iloc[-1]
-                    else:
-                        continue # No valid price found up to this date
-                
-                if pd.notna(price) and price > 0:
-                     total_value_on_date += price * quantity
-
-        share_value = total_value_on_date * (ownership_data["Percentage"] / 100)
-        if share_value >= 500: # Threshold condition
-            monthly_values.append({"Date": date, "Share Value": share_value})
-
-    return pd.DataFrame(monthly_values)
-
-def fetch_daily_prices(tickers):
-    daily_prices = {}
-    for ticker in tickers:
-        # yfinance uses ^GDAXI for DAX index
-        actual_ticker = "^GDAXI" if ticker == "DAX" else ticker
-        try:
-            # Fetch slightly more data to ensure previous day is available
-            data = yf.download(actual_ticker, period="10d", interval="1d", progress=False)
-            if not data.empty:
-                if data.index.tz is None:
-                    data.index = data.index.tz_localize('UTC')
-                data.index = data.index.tz_convert(local_tz)
-                daily_prices[ticker] = data # Keep original ticker key
-            else:
-                st.warning(f"No daily data for {ticker} ({actual_ticker}).")
-                daily_prices[ticker] = None
-        except Exception as e:
-            print(f"Error fetching daily data for {ticker} ({actual_ticker}): {e}")
-            daily_prices[ticker] = None
-    return daily_prices
-
-def get_scalar_price(row_series, column_name):
-    """Safely extracts a scalar price from a row Series, handling potential duplicate columns."""
-    if column_name in row_series.index:
-        value_or_series = row_series[column_name]
-        if isinstance(value_or_series, pd.Series):
-            if not value_or_series.empty:
-                # Multiple values found for the column name, take the first one.
-                scalar_price = value_or_series.iloc[0]
-            else:
-                scalar_price = None
-        else:
-            # Single value found, it's already a scalar.
-            scalar_price = value_or_series
-        
-        if pd.notna(scalar_price):
-            return float(scalar_price)
-    return None
 
 # Previous code ...
 
@@ -251,7 +145,7 @@ def main():
 
     st.subheader("Wertentwicklung (Anteil) über die letzten 2 Jahre:")
     monthly_share_value_df = calculate_monthly_share_value(
-        portfolio_assets, historical_prices, ownership, initial_cash
+        portfolio_assets, historical_prices, ownership, initial_cash, threshold=500
     )
 
     if not monthly_share_value_df.empty:

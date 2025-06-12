@@ -4,6 +4,7 @@ import streamlit as st
 import json
 import os
 from datetime import datetime
+from portfolio_utils import fetch_historical_prices
 
 # Initial portfolio and ownership
 portfolio = [
@@ -51,20 +52,6 @@ def save_data(christian, transactions):
 
 
 # Fetch historical prices
-def fetch_historical_prices(tickers):
-    historical_prices = {}
-    for ticker in tickers:
-        try:
-            stock = yf.Ticker(ticker)
-            data = stock.history(period="2y", interval="1mo")
-            if not data.empty:
-                historical_prices[ticker] = data["Close"].fillna(method="ffill")
-            else:
-                historical_prices[ticker] = None
-        except Exception as e:
-            print(f"Error fetching data for {ticker}: {e}")
-            historical_prices[ticker] = None
-    return historical_prices
 
 
 def calculate_current_value(portfolio, christian, initial_cash, historical_prices):
