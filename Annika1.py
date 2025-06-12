@@ -2,29 +2,48 @@
 import yfinance as yf
 import pandas as pd
 import streamlit as st
+import json
+import os
 
-# Define portfolio
-portfolio = [
-    {"Ticker": "URTH", "Quantity": 480},
-    {"Ticker": "WFC", "Quantity": 400},
-    {"Ticker": "HLBZF", "Quantity": 185},
-    {"Ticker": "C", "Quantity": 340},
-    {"Ticker": "BPAQF", "Quantity": 2000},
-    {"Ticker": "POAHF", "Quantity": 150},
-    {"Ticker": "EXV1.DE", "Quantity": 284},
-    {"Ticker": "1COV.DE", "Quantity": 100},
-    {"Ticker": "SPY", "Quantity": 10},
-    {"Ticker": "HYMTF", "Quantity": 100},
-    {"Ticker": "SHEL", "Quantity": 75},
-    {"Ticker": "DAX", "Quantity": 6},
-    {"Ticker": "PLTR", "Quantity": 100},
-    {"Ticker": "UQ2B.DU", "Quantity": 5},
-    {"Ticker": "DB", "Quantity": 1},
-    {"Ticker": "GS", "Quantity": 9},
-    {"Ticker": "MBG.DE", "Quantity": 50},
-]
+CONFIG_FILE = "config.json"
 
-cash_position = 17000  # Cash position in USD
+DEFAULT_CONFIG = {
+    "initial_cash": 17000,
+    "portfolio": [
+        {"Ticker": "URTH", "Quantity": 480},
+        {"Ticker": "WFC", "Quantity": 400},
+        {"Ticker": "HLBZF", "Quantity": 185},
+        {"Ticker": "C", "Quantity": 340},
+        {"Ticker": "BPAQF", "Quantity": 2000},
+        {"Ticker": "POAHF", "Quantity": 150},
+        {"Ticker": "EXV1.DE", "Quantity": 284},
+        {"Ticker": "1COV.DE", "Quantity": 100},
+        {"Ticker": "SPY", "Quantity": 10},
+        {"Ticker": "HYMTF", "Quantity": 100},
+        {"Ticker": "SHEL", "Quantity": 75},
+        {"Ticker": "DAX", "Quantity": 6},
+        {"Ticker": "PLTR", "Quantity": 100},
+        {"Ticker": "UQ2B.DU", "Quantity": 5},
+        {"Ticker": "DB", "Quantity": 1},
+        {"Ticker": "GS", "Quantity": 9},
+        {"Ticker": "MBG.DE", "Quantity": 50},
+    ],
+}
+
+
+def load_config(path: str = CONFIG_FILE):
+    if os.path.exists(path):
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return DEFAULT_CONFIG
+
+
+config = load_config()
+portfolio = config.get("portfolio", DEFAULT_CONFIG["portfolio"])
+cash_position = config.get("initial_cash", DEFAULT_CONFIG["initial_cash"])
 
 
 def fetch_current_prices(tickers):
