@@ -2,43 +2,67 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 from datetime import datetime
+import json
+import os
+
+CONFIG_FILE = "config.json"
+
+DEFAULT_CONFIG = {
+    "initial_cash": 17000,
+    "portfolio": [
+        {"Ticker": "URTH", "Quantity": 480, "Name": "Welt Index"},
+        {"Ticker": "WFC", "Quantity": 400, "Name": "Wells Fargo (Bank)"},
+        {"Ticker": "HLBZF", "Quantity": 185, "Name": "Heidelberg Materials"},
+        {"Ticker": "C", "Quantity": 340, "Name": "Citigroup (Bank)"},
+        {"Ticker": "BPAQF", "Quantity": 2000, "Name": "British Petroleum (Öl/Gas)"},
+        {"Ticker": "POAHF", "Quantity": 150, "Name": "Porsche (Auto)"},
+        {"Ticker": "EXV1.DE", "Quantity": 284, "Name": "Bank Index"},
+        {"Ticker": "1COV.DE", "Quantity": 100, "Name": "Covestro (Chemie)"},
+        {"Ticker": "SPY", "Quantity": 10, "Name": "USA Index"},
+        {"Ticker": "HYMTF", "Quantity": 100, "Name": "Hyundai (Auto)"},
+        {"Ticker": "SHEL", "Quantity": 75, "Name": "Shell (Öl/Gas)"},
+        {"Ticker": "DAX", "Quantity": 0.0114, "Name": "Deutschland Index"},
+        {"Ticker": "PLTR", "Quantity": 100, "Name": "Palantir (Rüstung Software)"},
+        {"Ticker": "UQ2B.DU", "Quantity": 5, "Name": "Europa Index"},
+        {"Ticker": "DB", "Quantity": 1, "Name": "Deutsche Bank"},
+        {"Ticker": "GS", "Quantity": 9, "Name": "Goldman Sachs (Bank)"},
+        {"Ticker": "MBG.DE", "Quantity": 50, "Name": "Mercedes (Auto)"},
+    ],
+    "ownership": {
+        "Annika": 0.343225979,
+        "Christian": 31.196773489,
+        "Parents": 69.713319,
+    },
+}
+
+
+def load_config(path: str = CONFIG_FILE):
+    if os.path.exists(path):
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return DEFAULT_CONFIG
 
 # --- Configuration ---
 st.set_page_config(page_title="Stock Portfolio Tracker", layout="wide")
 
 # --- Portfolio Data ---
-portfolio_assets = [
-    {"Ticker": "URTH", "Quantity": 480, "Name": "Welt Index"},
-    {"Ticker": "WFC", "Quantity": 400, "Name": "Wells Fargo (Bank)"},
-    {"Ticker": "HLBZF", "Quantity": 185, "Name": "Heidelberg Materials"},  # OTC
-    {"Ticker": "C", "Quantity": 340, "Name": "Citigroup (Bank)"},
-    {"Ticker": "BPAQF", "Quantity": 2000, "Name": "British Petroleum (Öl/Gas)"},  # OTC
-    {"Ticker": "POAHF", "Quantity": 150, "Name": "Porsche (Auto)"},  # OTC
-    {"Ticker": "EXV1.DE", "Quantity": 284, "Name": "Bank Index"},  # Xetra
-    {"Ticker": "1COV.DE", "Quantity": 100, "Name": "Covestro (Chemie)"},  # Xetra
-    {"Ticker": "SPY", "Quantity": 10, "Name": "USA Index"},
-    {"Ticker": "HYMTF", "Quantity": 100, "Name": "Hyundai (Auto)"},  # OTC
-    {"Ticker": "SHEL", "Quantity": 75, "Name": "Shell (Öl/Gas)"},
-    {"Ticker": "DAX", "Quantity": 0.0114, "Name": "Deutschland Index"},  # ^GDAXI is the YF ticker
-    {"Ticker": "PLTR", "Quantity": 100, "Name": "Palantir (Rüstung Software)"},
-    {"Ticker": "UQ2B.DU", "Quantity": 5, "Name": "Europa Index"},  # Dusseldorf
-    {"Ticker": "DB", "Quantity": 1, "Name": "Deutsche Bank"},
-    {"Ticker": "GS", "Quantity": 9, "Name": "Goldman Sachs (Bank)"},
-    {"Ticker": "MBG.DE", "Quantity": 50, "Name": "Mercedes (Auto)"},  # Xetra
-]
-
-initial_cash = 17000.00
+config = load_config()
+portfolio_assets = config.get("portfolio", DEFAULT_CONFIG["portfolio"])
+initial_cash = config.get("initial_cash", DEFAULT_CONFIG["initial_cash"])
 
 # --- Ownership Percentages ---
-# (Interpreted as percentages -> to be converted to decimal fractions)
-annika_pct   = 0.343225979   # 0.343225979 percent → 0.00343225979 fraction if truly "percent"
-christian_pct = 31.196773489 # 31.196773489 percent → 0.31196773489 fraction
-parents_pct   = 69.713319    # 69.713319 percent   → 0.69713319 fraction
+ownership = config.get("ownership", DEFAULT_CONFIG.get("ownership", {}))
+annika_pct = ownership.get("Annika", 0.0)
+christian_pct = ownership.get("Christian", 0.0)
+parents_pct = ownership.get("Parents", 0.0)
 
-# Convert these “percent” values to decimals if they are indeed meant as percentages
-annika_fraction    = annika_pct / 100.0
+# Convert these values to decimals
+annika_fraction = annika_pct / 100.0
 christian_fraction = christian_pct / 100.0
-parents_fraction   = parents_pct / 100.0
+parents_fraction = parents_pct / 100.0
 
 # --- Helper Functions ---
 @st.cache_data(ttl=600)

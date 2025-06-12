@@ -1,0 +1,29 @@
+{
+  "initial_cash": 17000,
+  "portfolio": [
+    {"Ticker": "URTH", "Quantity": 480, "Name": "Welt Index"},
+    {"Ticker": "WFC", "Quantity": 400, "Name": "Wells Fargo (Bank)"},
+    {"Ticker": "HLBZF", "Quantity": 185, "Name": "Heidelberg Materials"},
+    {"Ticker": "C", "Quantity": 340, "Name": "Citigroup (Bank)"},
+    {"Ticker": "BPAQF", "Quantity": 2000, "Name": "British Petroleum (Öl/Gas)"},
+    {"Ticker": "POAHF", "Quantity": 150, "Name": "Porsche (Auto)"},
+    {"Ticker": "EXV1.DE", "Quantity": 284, "Name": "Bank Index"},
+    {"Ticker": "1COV.DE", "Quantity": 100, "Name": "Covestro (Chemie)"},
+    {"Ticker": "SPY", "Quantity": 10, "Name": "USA Index"},
+    {"Ticker": "HYMTF", "Quantity": 100, "Name": "Hyundai (Auto)"},
+    {"Ticker": "SHEL", "Quantity": 75, "Name": "Shell (Öl/Gas)"},
+    {"Ticker": "DAX", "Quantity": 6, "Name": "Deutschland Index"},
+    {"Ticker": "PLTR", "Quantity": 100, "Name": "Palantir (Rüstung Software)"},
+    {"Ticker": "UQ2B.DU", "Quantity": 5, "Name": "Europa Index"},
+    {"Ticker": "DB", "Quantity": 1, "Name": "Deutsche Bank"},
+    {"Ticker": "GS", "Quantity": 9, "Name": "Goldman Sachs (Bank)"},
+    {"Ticker": "MBG.DE", "Quantity": 50, "Name": "Mercedes (Auto)"},
+    {"Ticker": "UAL", "Quantity": 60, "Name": "United (Airline)"},
+    {"Ticker": "LUV", "Quantity": 100, "Name": "Southwest (Airline)"}
+  ],
+  "ownership": {
+    "Annika": 0.181639346,
+    "Parents": 67.821735319,
+    "Christian": 31.996773489
+  }
+}

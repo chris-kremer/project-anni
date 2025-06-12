@@ -6,28 +6,45 @@ import pytz
 import os
 import json
 
-# Initial portfolio and ownership
-portfolio_assets = [
-    {"Ticker": "URTH", "Quantity": 480, "Name": "Welt Index"},
-    {"Ticker": "WFC", "Quantity": 400, "Name": "Wells Fargo (Bank)"},
-    {"Ticker": "HLBZF", "Quantity": 185, "Name": "Heidelberg Materials"},
-    {"Ticker": "C", "Quantity": 340, "Name": "Citigroup (Bank)"},
-    {"Ticker": "BPAQF", "Quantity": 2000, "Name": "British Petroleum (Öl/Gas)"},
-    {"Ticker": "POAHF", "Quantity": 150, "Name": "Porsche (Auto)"},
-    {"Ticker": "EXV1.DE", "Quantity": 284, "Name": "Bank Index"},
-    {"Ticker": "1COV.DE", "Quantity": 100, "Name": "Covestro (Chemie)"},
-    {"Ticker": "SPY", "Quantity": 10, "Name": "USA Index"},
-    {"Ticker": "HYMTF", "Quantity": 100, "Name": "Hyundai (Auto)"},
-    {"Ticker": "SHEL", "Quantity": 75, "Name": "Shell (Öl/Gas)"},
-    {"Ticker": "DAX", "Quantity": 0, "Name": "Deutschaland Index"}, # Note: DAX is ^GDAXI on yfinance
-    {"Ticker": "PLTR", "Quantity": 100, "Name": "Palantir (Rüstung Software)"},
-    {"Ticker": "UQ2B.DU", "Quantity": 5, "Name": "Europa Index"},
-    {"Ticker": "DB", "Quantity": 1, "Name": "Deutsche Bank"}, # Note: Might be DBK.DE for Xetra
-    {"Ticker": "GS", "Quantity": 9, "Name": "Goldman Sachs (Bank)"},
-    {"Ticker": "MBG.DE", "Quantity": 50, "Name": "Mercedes (Auto)"},
-]
+CONFIG_FILE = "config.json"
 
-initial_cash = 42000
+DEFAULT_CONFIG = {
+    "initial_cash": 17000,
+    "portfolio": [
+        {"Ticker": "URTH", "Quantity": 480, "Name": "Welt Index"},
+        {"Ticker": "WFC", "Quantity": 400, "Name": "Wells Fargo (Bank)"},
+        {"Ticker": "HLBZF", "Quantity": 185, "Name": "Heidelberg Materials"},
+        {"Ticker": "C", "Quantity": 340, "Name": "Citigroup (Bank)"},
+        {"Ticker": "BPAQF", "Quantity": 2000, "Name": "British Petroleum (Öl/Gas)"},
+        {"Ticker": "POAHF", "Quantity": 150, "Name": "Porsche (Auto)"},
+        {"Ticker": "EXV1.DE", "Quantity": 284, "Name": "Bank Index"},
+        {"Ticker": "1COV.DE", "Quantity": 100, "Name": "Covestro (Chemie)"},
+        {"Ticker": "SPY", "Quantity": 10, "Name": "USA Index"},
+        {"Ticker": "HYMTF", "Quantity": 100, "Name": "Hyundai (Auto)"},
+        {"Ticker": "SHEL", "Quantity": 75, "Name": "Shell (Öl/Gas)"},
+        {"Ticker": "DAX", "Quantity": 6, "Name": "Deutschaland Index"},
+        {"Ticker": "PLTR", "Quantity": 100, "Name": "Palantir (Rüstung Software)"},
+        {"Ticker": "UQ2B.DU", "Quantity": 5, "Name": "Europa Index"},
+        {"Ticker": "DB", "Quantity": 1, "Name": "Deutsche Bank"},
+        {"Ticker": "GS", "Quantity": 9, "Name": "Goldman Sachs (Bank)"},
+        {"Ticker": "MBG.DE", "Quantity": 50, "Name": "Mercedes (Auto)"},
+    ],
+}
+
+
+def load_config(path: str = CONFIG_FILE):
+    if os.path.exists(path):
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return DEFAULT_CONFIG
+
+# Initial portfolio and cash loaded from configuration
+config = load_config()
+portfolio_assets = config.get("portfolio", DEFAULT_CONFIG["portfolio"])
+initial_cash = config.get("initial_cash", DEFAULT_CONFIG["initial_cash"])
 data_file_path = "parents_data.json"
 local_tz = pytz.timezone("Europe/Berlin")
 

@@ -4,28 +4,51 @@ import streamlit as st
 import json
 import os
 
-# Initial portfolio and ownership
-portfolio = [
-    {"Ticker": "URTH", "Quantity": 480},
-    {"Ticker": "WFC", "Quantity": 400},
-    {"Ticker": "HLBZF", "Quantity": 185},
-    {"Ticker": "C", "Quantity": 340},
-    {"Ticker": "BPAQF", "Quantity": 2000},
-    {"Ticker": "POAHF", "Quantity": 150},
-    {"Ticker": "EXV1.DE", "Quantity": 284},
-    {"Ticker": "1COV.DE", "Quantity": 100},
-    {"Ticker": "SPY", "Quantity": 10},
-    {"Ticker": "HYMTF", "Quantity": 100},
-    {"Ticker": "SHEL", "Quantity": 75},
-    {"Ticker": "DAX", "Quantity": 6},
-    {"Ticker": "PLTR", "Quantity": 100},
-    {"Ticker": "UQ2B.DU", "Quantity": 5},
-    {"Ticker": "DB", "Quantity": 1},
-    {"Ticker": "GS", "Quantity": 9},
-    {"Ticker": "MBG.DE", "Quantity": 50},
-]
+CONFIG_FILE = "config.json"
 
-initial_cash_position = 17000
+DEFAULT_CONFIG = {
+    "initial_cash": 17000,
+    "portfolio": [
+        {"Ticker": "URTH", "Quantity": 480},
+        {"Ticker": "WFC", "Quantity": 400},
+        {"Ticker": "HLBZF", "Quantity": 185},
+        {"Ticker": "C", "Quantity": 340},
+        {"Ticker": "BPAQF", "Quantity": 2000},
+        {"Ticker": "POAHF", "Quantity": 150},
+        {"Ticker": "EXV1.DE", "Quantity": 284},
+        {"Ticker": "1COV.DE", "Quantity": 100},
+        {"Ticker": "SPY", "Quantity": 10},
+        {"Ticker": "HYMTF", "Quantity": 100},
+        {"Ticker": "SHEL", "Quantity": 75},
+        {"Ticker": "DAX", "Quantity": 6},
+        {"Ticker": "PLTR", "Quantity": 100},
+        {"Ticker": "UQ2B.DU", "Quantity": 5},
+        {"Ticker": "DB", "Quantity": 1},
+        {"Ticker": "GS", "Quantity": 9},
+        {"Ticker": "MBG.DE", "Quantity": 50},
+    ],
+    "ownership": {
+        "Annika": 0.181639346,
+        "Parents": 67.821735319,
+        "Christian": 31.996773489,
+    },
+}
+
+
+def load_config(path: str = CONFIG_FILE):
+    """Load portfolio configuration from JSON file."""
+    if os.path.exists(path):
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return DEFAULT_CONFIG
+
+
+config = load_config()
+portfolio = config.get("portfolio", DEFAULT_CONFIG["portfolio"])
+initial_cash_position = config.get("initial_cash", DEFAULT_CONFIG["initial_cash"])
 data_file = "portfolio_data.json"
 
 # Load or initialize ownership and transaction log
