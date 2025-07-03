@@ -39,9 +39,9 @@ def load_ownership_data():
                 return data.get("ownership", {"Percentage": 69.821735319})
         except json.JSONDecodeError:
             st.warning("Data file is corrupt. Using default values.")
-            return {"Percentage": 69.821735319}
+            return {"Percentage": 62.821735319}
     else:
-        return {"Percentage": 69.821735319}
+        return {"Percentage": 67.821735319}
 
 def fetch_historical_prices(tickers):
     historical_prices = {}
