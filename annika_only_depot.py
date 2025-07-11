@@ -223,7 +223,7 @@ def main():
     with col1:
         delta_vs_130k = 0
         if current_value is not None and current_value > 0 :
-            delta_vs_130k = ((current_value / 850) - 1) * 100 if 850 != 0 else 0
+            delta_vs_130k = ((current_value / 900) - 1) * 100 if 900 != 0 else 0
         st.metric(
             label="Aktueller Wert (Anteil)",
             value=f"€{current_value:,.2f}" if current_value is not None else "N/A",
