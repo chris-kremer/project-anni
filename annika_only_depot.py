@@ -48,7 +48,7 @@ def load_ownership_data():
         try:
             with open(data_file_path, "r") as file:
                 data = json.load(file)
-                return data.get("ownership", {"Percentage": 0.38462512})
+                return data.get("ownership", {"Percentage": 0.4017})
         except json.JSONDecodeError:
             st.warning("Data file is corrupt. Using default values.")
             return {"Percentage": 0.31}
@@ -223,11 +223,11 @@ def main():
     with col1:
         delta_vs_130k = 0
         if current_value is not None and current_value > 0 :
-            delta_vs_130k = ((current_value / 800) - 1) * 100 if 800 != 0 else 0
+            delta_vs_130k = ((current_value / 850) - 1) * 100 if 850 != 0 else 0
         st.metric(
             label="Aktueller Wert (Anteil)",
             value=f"€{current_value:,.2f}" if current_value is not None else "N/A",
-            delta=f"{delta_vs_130k:.2f}% vs €800" if current_value is not None else "",
+            delta=f"{delta_vs_130k:.2f}% vs €850" if current_value is not None else "",
             delta_color="normal"
         )
     
