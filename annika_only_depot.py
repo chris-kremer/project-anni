@@ -227,7 +227,7 @@ def main():
         st.metric(
             label="Aktueller Wert (Anteil)",
             value=f"€{current_value:,.2f}" if current_value is not None else "N/A",
-            delta=f"{delta_vs_130k:.2f}% vs €850" if current_value is not None else "",
+            delta=f"{delta_vs_130k:.2f}% vs €900" if current_value is not None else "",
             delta_color="normal"
         )
     
